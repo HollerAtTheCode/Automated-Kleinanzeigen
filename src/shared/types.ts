@@ -47,6 +47,7 @@ export type ListingDraft = {
   title: string;
   description: string;
   categoryHint?: string;
+  condition: ProductAnalysis["condition"];
   price: PriceRecommendation;
   priceType: "fixed" | "negotiable";
   fulfillmentMethod: "pickup" | "shipping";

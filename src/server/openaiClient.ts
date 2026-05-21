@@ -177,6 +177,7 @@ export async function generateDraft(session: StoredSessionState, price: PriceRec
     title,
     description,
     categoryHint: normalizeKleinanzeigenCategory(analysis),
+    condition: analysis.condition,
     price,
     priceType,
     fulfillmentMethod,

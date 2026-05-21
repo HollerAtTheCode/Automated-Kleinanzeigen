@@ -30,6 +30,7 @@ describe("draft integration without external services", () => {
 
     expect(draft.title).toContain("Comandante");
     expect(draft.description).toMatch(/Privatverkauf/);
+    expect(draft.condition).toBe("good");
     expect(draft.price.suggestedPrice).toBe(180);
     expect(draft.imageOrder).toEqual(["img1"]);
   });

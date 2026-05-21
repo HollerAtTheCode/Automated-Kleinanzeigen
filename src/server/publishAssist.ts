@@ -41,6 +41,7 @@ export async function startPublishAssist(draft: ListingDraft, images: StoredUplo
       draft.description
     );
     await selectCategory(page, draft.categoryHint);
+    await selectCondition(page, draft.condition);
     await uploadImages(page, orderedImagePaths(images, draft.imageOrder));
     await selectPriceType(page, draft.priceType);
 
@@ -198,6 +199,88 @@ async function selectCategory(page: Page, categoryHint?: string) {
   }
 
   return setCategoryFallback(page, selected);
+}
+
+const conditionLabels: Record<ListingDraft["condition"], string> = {
+  new: "Neu",
+  like_new: "Wie neu",
+  good: "Gut",
+  fair: "Gebraucht",
+  defective: "Defekt",
+  unknown: ""
+};
+
+async function selectCondition(page: Page, condition: ListingDraft["condition"]) {
+  const targetLabel = conditionLabels[condition];
+  if (!targetLabel) return false;
+
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    if (await selectNativeCondition(page, targetLabel)) return true;
+    if (await selectCustomCondition(page, targetLabel)) return true;
+    await page.waitForTimeout(500);
+  }
+
+  return false;
+}
+
+async function selectNativeCondition(page: Page, targetLabel: string) {
+  const selects = await page.locator("select").all();
+  for (const select of selects) {
+    if (!(await select.isVisible().catch(() => false))) continue;
+    const meta = await select.evaluate((element) => ({
+      id: element.id,
+      name: element.getAttribute("name") ?? "",
+      label: element.closest("label")?.textContent ?? "",
+      options: [...(element as HTMLSelectElement).options].map((option) => ({ value: option.value, text: option.textContent?.trim() ?? "" }))
+    }));
+    const isConditionControl = /zustand|condition|state/i.test(`${meta.id} ${meta.name} ${meta.label}`);
+    const match = meta.options.find((option) => option.text.toLowerCase() === targetLabel.toLowerCase());
+    if (!match || !isConditionControl) continue;
+    await select.selectOption(match.value);
+    return true;
+  }
+  return false;
+}
+
+async function selectCustomCondition(page: Page, targetLabel: string) {
+  const comboboxes = await page.locator("button[role='combobox']").all();
+  for (const combobox of comboboxes) {
+    if (!(await combobox.isVisible().catch(() => false))) continue;
+    const text = await combobox.innerText().catch(() => "");
+    const meta = await combobox.evaluate((element) =>
+      [element.id, element.getAttribute("aria-labelledby"), element.textContent].filter(Boolean).join(" ")
+    );
+    if (!/zustand|condition|state/i.test(`${text} ${meta}`)) continue;
+
+    await combobox.click();
+    await page.waitForTimeout(250);
+    if (await clickConditionOption(page, targetLabel)) {
+      await page.waitForTimeout(250);
+      return true;
+    }
+    await page.keyboard.press("Escape").catch(() => undefined);
+  }
+  return false;
+}
+
+async function clickConditionOption(page: Page, targetLabel: string) {
+  const locators = [
+    page.getByRole("option", { name: targetLabel, exact: true }).first(),
+    page.locator("[role='option']").filter({ hasText: targetLabel }).first(),
+    page.locator("[role='menuitem']").filter({ hasText: targetLabel }).first(),
+    page.locator("li").filter({ hasText: targetLabel }).first(),
+    page.locator("button").filter({ hasText: targetLabel }).first(),
+    page.getByText(targetLabel, { exact: true }).first()
+  ];
+
+  for (const locator of locators) {
+    if ((await locator.count()) === 0) continue;
+    if (!(await locator.isVisible().catch(() => false))) continue;
+    await locator.click();
+    return true;
+  }
+  return false;
 }
 
 async function readCategoryOptions(page: Page) {
