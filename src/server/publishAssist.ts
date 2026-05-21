@@ -172,21 +172,7 @@ async function selectPriceType(page: Page, priceType: ListingDraft["priceType"])
 }
 
 async function selectCategory(page: Page, categoryHint?: string) {
-  const categoryOptions = await page.locator("input[type='radio']").evaluateAll((nodes) =>
-    nodes.map((node, index) => {
-      const input = node as HTMLInputElement;
-      const label = input.closest("label");
-      const row = input.parentElement;
-      return {
-        index,
-        id: input.id,
-        name: input.name,
-        value: input.value,
-        checked: input.checked,
-        text: (label?.textContent ?? row?.textContent ?? "").replace(/\s+/g, " ").trim()
-      };
-    })
-  );
+  const categoryOptions = await readCategoryOptions(page);
   const candidates = categoryOptions.filter((option) => option.text.includes("→"));
   const wantedTokens = expandCategoryTokens(normalizeCategoryText(categoryHint ?? ""))
     .split(" ")
@@ -199,17 +185,57 @@ async function selectCategory(page: Page, categoryHint?: string) {
     .sort((a, b) => b.score - a.score);
   const selected = ranked[0];
   if (!selected || selected.score === 0) return false;
-  return page.evaluate((target) => {
-    const radios = [...document.querySelectorAll<HTMLInputElement>("input[type='radio']")];
-    const radio = radios[target.index];
-    if (!radio) return false;
-    radio.checked = true;
-    radio.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    radio.dispatchEvent(new Event("input", { bubbles: true }));
-    radio.dispatchEvent(new Event("change", { bubbles: true }));
-    radio.closest("label")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+  if (await clickCategoryLabel(page, selected.text)) {
+    if (await isCategoryChecked(page, selected.text)) return true;
+  }
+
+  const radio = page.locator("input[type='radio']").nth(selected.index);
+  if ((await radio.count()) > 0) {
+    await radio.click({ force: true });
+    if (await isCategoryChecked(page, selected.text)) return true;
+  }
+
+  return false;
+}
+
+async function readCategoryOptions(page: Page) {
+  return page.locator("input[type='radio']").evaluateAll((nodes) =>
+    nodes.map((node, index) => {
+      const input = node as HTMLInputElement;
+      const label = input.closest("label");
+      const row = input.parentElement;
+      return {
+        index,
+        id: input.id,
+        name: input.name,
+        value: input.value,
+        checked: input.checked || input.getAttribute("aria-checked") === "true",
+        text: (label?.textContent ?? row?.textContent ?? "").replace(/\s+/g, " ").trim()
+      };
+    })
+  );
+}
+
+async function clickCategoryLabel(page: Page, labelText: string) {
+  const labels = [
+    page.locator("label").filter({ hasText: labelText }).first(),
+    page.getByText(labelText, { exact: true }).first()
+  ];
+
+  for (const label of labels) {
+    if ((await label.count()) === 0) continue;
+    if (!(await label.isVisible().catch(() => false))) continue;
+    await label.click();
+    await page.waitForTimeout(250);
     return true;
-  }, selected);
+  }
+  return false;
+}
+
+async function isCategoryChecked(page: Page, labelText: string) {
+  const options = await readCategoryOptions(page);
+  return options.some((option) => option.text === labelText && option.checked);
 }
 
 function normalizeCategoryText(value: string) {
