@@ -6,6 +6,7 @@ import { createServer as createViteServer } from "vite";
 import { config, hasOpenaiApiKey, setRuntimeOpenaiApiKey } from "./config.js";
 import { analyzeProduct, generateDraft, generateSaleNotes } from "./openaiClient.js";
 import { recommendPrice } from "./pricing.js";
+import { normalizeKleinanzeigenCategory } from "./categories.js";
 import { searchKleinanzeigen } from "./kleinanzeigen.js";
 import { startPublishAssist } from "./publishAssist.js";
 import { acceptsDeclaredImageType, assertValidUploadedImages, safeImageExtension } from "./uploads.js";
@@ -126,7 +127,7 @@ app.post("/api/session/:id/analysis", (req, res, next) => {
         ...(typeof req.body?.detectedAttributes === "object" && req.body.detectedAttributes ? req.body.detectedAttributes : {})
       }
     });
-    res.json(setAnalysis(session.id, result).analysis);
+    res.json(setAnalysis(session.id, { ...result, suggestedCategory: normalizeKleinanzeigenCategory(result) }).analysis);
   } catch (error) {
     next(error);
   }

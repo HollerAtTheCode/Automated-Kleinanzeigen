@@ -4,9 +4,10 @@ import type { ListingDraft, PriceRecommendation, ProductAnalysis } from "../shar
 import { config, getOpenaiApiKey } from "./config.js";
 import type { StoredSessionState } from "./sessionStore.js";
 import { PRODUCT_ANALYSIS_TEXT_FORMAT, ProductAnalysisSchema } from "./validators.js";
+import { normalizeKleinanzeigenCategory } from "./categories.js";
 
 function fallbackAnalysis(): ProductAnalysis {
-  return {
+  const analysis: ProductAnalysis = {
     productType: "Unbekannter Artikel",
     condition: "unknown",
     confidence: 0.2,
@@ -18,6 +19,7 @@ function fallbackAnalysis(): ProductAnalysis {
     fulfillmentMethod: "shipping",
     priceType: "negotiable"
   };
+  return { ...analysis, suggestedCategory: normalizeKleinanzeigenCategory(analysis) };
 }
 
 function makeClient() {
@@ -102,7 +104,9 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
   try {
     const parsedJson = normalizeAnalysisPayload(JSON.parse(response.output_text));
     const parsed = ProductAnalysisSchema.safeParse(parsedJson);
-    if (parsed.success) return parsed.data;
+    if (parsed.success) {
+      return { ...parsed.data, suggestedCategory: normalizeKleinanzeigenCategory(parsed.data) };
+    }
   } catch {
     // The request uses Structured Outputs, so this should only happen on provider/API failures.
   }
@@ -172,7 +176,7 @@ export async function generateDraft(session: StoredSessionState, price: PriceRec
   return {
     title,
     description,
-    categoryHint: analysis.suggestedCategory,
+    categoryHint: normalizeKleinanzeigenCategory(analysis),
     price,
     priceType,
     fulfillmentMethod,

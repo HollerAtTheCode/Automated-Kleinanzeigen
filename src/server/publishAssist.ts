@@ -188,7 +188,6 @@ async function selectCategory(page: Page, categoryHint?: string) {
     })
   );
   const candidates = categoryOptions.filter((option) => option.text.includes("→"));
-  if (candidates.some((option) => option.checked)) return true;
   const wantedTokens = expandCategoryTokens(normalizeCategoryText(categoryHint ?? ""))
     .split(" ")
     .filter((token) => token.length > 3 && !["elektronik", "zubehor", "weitere"].includes(token));
@@ -199,7 +198,7 @@ async function selectCategory(page: Page, categoryHint?: string) {
     }))
     .sort((a, b) => b.score - a.score);
   const selected = ranked[0];
-  if (!selected) return false;
+  if (!selected || selected.score === 0) return false;
   return page.evaluate((target) => {
     const radios = [...document.querySelectorAll<HTMLInputElement>("input[type='radio']")];
     const radio = radios[target.index];
