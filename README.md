@@ -4,6 +4,12 @@ Automated Kleinanzeigen is a local-first assistant for preparing private Kleinan
 
 The app does not blind-post listings. The final login, category selection, image upload check, content review, and publishing click stay with the user.
 
+## Intended Use
+
+This application is intended only for local hosting on a trusted personal machine and only for private, non-commercial use. It is not designed, hardened, or licensed as a public web service, hosted SaaS product, multi-user system, or commercial Kleinanzeigen automation platform.
+
+Keep the default loopback binding unless you fully understand the local-network exposure risk. Do not deploy this app to a public server.
+
 ## Features
 
 - Drag-and-drop product image upload.
@@ -16,7 +22,7 @@ The app does not blind-post listings. The final login, category selection, image
 
 ## Safety Model
 
-This project is designed as a local private-sale assistant, not a bulk-posting or account automation tool.
+This project is designed as a local private-sale assistant, not a hosted service, bulk-posting system, or account automation tool.
 
 - The server binds to `127.0.0.1` by default.
 - Non-loopback bind addresses require `ALLOW_NON_LOOPBACK_HOST=true` because the local API is intentionally unauthenticated.

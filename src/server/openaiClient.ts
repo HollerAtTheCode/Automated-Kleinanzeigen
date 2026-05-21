@@ -13,7 +13,8 @@ function fallbackAnalysis(): ProductAnalysis {
     detectedAttributes: {},
     openQuestions: ["Was genau wird verkauft?", "Gibt es bekannte Mängel?", "Welches Zubehör ist enthalten?"],
     searchQueries: ["gebrauchter Artikel Kleinanzeigen"],
-    suggestedCategory: "Sonstiges"
+    suggestedCategory: "Sonstiges",
+    saleNotes: ""
   };
 }
 
@@ -85,7 +86,7 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
             {
               type: "input_text",
               text:
-                "Analysiere diese Produktbilder für einen privaten Kleinanzeigen-Verkauf. Fülle alle Felder im vorgegebenen Schema. Wenn Marke, Modell, Kategorie oder Zustand nicht sicher erkennbar sind, nutze leere Strings beziehungsweise unknown und stelle konkrete Rückfragen in openQuestions."
+                "Analysiere diese Produktbilder für einen privaten Kleinanzeigen-Verkauf. Fülle alle Felder im vorgegebenen Schema. saleNotes soll ein kurzer, eigener Text für Hinweise oder Mängel sein: sichtbarer Zustand, sichtbares Zubehör, sichtbare Gebrauchsspuren und erkennbare Mängel. Erfinde keine Mängel. Wenn keine Mängel erkennbar sind, formuliere das vorsichtig anhand der Fotos. Wenn Marke, Modell, Kategorie oder Zustand nicht sicher erkennbar sind, nutze leere Strings beziehungsweise unknown und stelle konkrete Rückfragen in openQuestions."
             },
             ...imageInputs
           ]
@@ -105,6 +106,43 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
   }
 
   throw Object.assign(new Error("Die Bildanalyse konnte nicht ausgewertet werden. Bitte versuche es erneut."), { statusCode: 502 });
+}
+
+export async function generateSaleNotes(session: StoredSessionState): Promise<string> {
+  const analysis = session.analysis ?? fallbackAnalysis();
+  const client = makeClient();
+  const existingNotes = analysis.saleNotes?.trim() ?? "";
+  if (!client) return existingNotes;
+
+  const response = await client.responses
+    .create({
+      model: config.openaiModel,
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: JSON.stringify({
+                instruction:
+                  "Schreibe einen kurzen Text für das Feld 'Hinweise oder Mängel' einer privaten Kleinanzeigen-Anzeige. Nutze Bildanalyse, Zustand, Zubehör und typische Informationen aus ähnlichen Anzeigen als Kontext. Kopiere keine fremden Anzeigen wörtlich. Erwähne Mängel nur, wenn sie angegeben oder auf Fotos erkennbar sind. Keine Werbesprache, keine Garantien.",
+                product: analysis,
+                comparableListings: session.comparables.slice(0, 8).map((listing) => ({
+                  title: listing.title,
+                  price: listing.price,
+                  description: listing.description
+                }))
+              })
+            }
+          ]
+        }
+      ]
+    })
+    .catch((error: unknown) => {
+      throw normalizeOpenAIError(error);
+    });
+
+  return response.output_text.trim().slice(0, 1200) || existingNotes;
 }
 
 export async function generateDraft(session: StoredSessionState, price: PriceRecommendation): Promise<ListingDraft> {
@@ -140,6 +178,7 @@ export async function generateDraft(session: StoredSessionState, price: PriceRec
               instruction:
                 "Erstelle eine Kleinanzeigen-Anzeige für Privatverkauf als JSON mit title, description, categoryHint, missingFacts. Maximal sachlich, keine nicht belegten Behauptungen, keine rechtlich heiklen Superlative.",
               analysis,
+              saleNotes: analysis.saleNotes,
               price,
               comparables: session.comparables.slice(0, 12)
             })

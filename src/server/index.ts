@@ -4,7 +4,7 @@ import express from "express";
 import multer from "multer";
 import { createServer as createViteServer } from "vite";
 import { config, hasOpenaiApiKey, setRuntimeOpenaiApiKey } from "./config.js";
-import { analyzeProduct, generateDraft } from "./openaiClient.js";
+import { analyzeProduct, generateDraft, generateSaleNotes } from "./openaiClient.js";
 import { recommendPrice } from "./pricing.js";
 import { searchKleinanzeigen } from "./kleinanzeigen.js";
 import { startPublishAssist } from "./publishAssist.js";
@@ -138,6 +138,25 @@ app.post("/api/session/:id/price-search", async (req, res, next) => {
     const queries = parseSearchQueries(req.body?.queries, session.analysis?.searchQueries ?? []);
     const comparables = await searchKleinanzeigen(queries, session.analysis);
     res.json(setComparables(session.id, comparables).comparables);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/session/:id/sale-notes", async (req, res, next) => {
+  try {
+    const session = getSession(param(req.params.id));
+    if (!session.analysis) {
+      res.status(400).json({ error: "Die Bildanalyse muss zuerst abgeschlossen sein." });
+      return;
+    }
+    if (typeof req.body?.notes === "string") {
+      setAnalysis(session.id, ProductAnalysisSchema.parse({ ...session.analysis, saleNotes: req.body.notes }));
+    }
+    const current = getSession(param(req.params.id));
+    const notes = await generateSaleNotes(current);
+    const updated = setAnalysis(session.id, ProductAnalysisSchema.parse({ ...current.analysis, saleNotes: notes }));
+    res.json({ saleNotes: updated.analysis?.saleNotes ?? "" });
   } catch (error) {
     next(error);
   }

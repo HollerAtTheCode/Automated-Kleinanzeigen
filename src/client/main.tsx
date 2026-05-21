@@ -88,7 +88,7 @@ function App() {
         model: result.model ?? "",
         condition: result.condition,
         category: result.suggestedCategory && result.suggestedCategory !== "Sonstiges" ? result.suggestedCategory : "",
-        notes: ""
+        notes: result.saleNotes ?? ""
       });
       setStep("analysis");
     });
@@ -132,7 +132,7 @@ function App() {
           model: productForm.model.trim() || undefined,
           condition: productForm.condition,
           suggestedCategory: category,
-          openQuestions: productForm.notes.trim() ? [productForm.notes.trim()] : [],
+          saleNotes: productForm.notes.trim(),
           searchQueries: buildSearchQueries()
         })
       });
@@ -152,6 +152,15 @@ function App() {
         body: JSON.stringify({ queries: updatedAnalysis.searchQueries })
       });
       setComparables(result);
+      const notesResult = await api<{ saleNotes: string }>(`/api/session/${session.id}/sale-notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: productForm.notes })
+      });
+      if (notesResult.saleNotes) {
+        setProductForm((current) => ({ ...current, notes: notesResult.saleNotes }));
+        setAnalysis((current) => (current ? { ...current, saleNotes: notesResult.saleNotes } : current));
+      }
       setStep("pricing");
     });
   };

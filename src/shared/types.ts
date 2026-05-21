@@ -15,6 +15,7 @@ export type ProductAnalysis = {
   openQuestions: string[];
   searchQueries: string[];
   suggestedCategory?: string;
+  saleNotes?: string;
 };
 
 export type ComparableListing = {
@@ -25,6 +26,7 @@ export type ComparableListing = {
   location?: string;
   url: string;
   score: number;
+  description?: string;
   excluded?: boolean;
   reason?: string;
 };

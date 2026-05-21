@@ -13,7 +13,8 @@ export const ProductAnalysisSchema = z.object({
   detectedAttributes: z.record(z.string(), z.string()).catch({}),
   openQuestions: z.array(z.string()).catch([]),
   searchQueries: z.array(z.string()).min(1).catch(["gebrauchter Artikel"]),
-  suggestedCategory: z.string().optional()
+  suggestedCategory: z.string().optional(),
+  saleNotes: z.string().optional()
 });
 
 export const AIProductAnalysisSchema = z.object({
@@ -44,7 +45,8 @@ export const PRODUCT_ANALYSIS_TEXT_FORMAT = {
       "detectedAttributes",
       "openQuestions",
       "searchQueries",
-      "suggestedCategory"
+      "suggestedCategory",
+      "saleNotes"
     ],
     properties: {
       productType: { type: "string" },
@@ -66,7 +68,8 @@ export const PRODUCT_ANALYSIS_TEXT_FORMAT = {
       },
       openQuestions: { type: "array", items: { type: "string" } },
       searchQueries: { type: "array", minItems: 1, maxItems: MAX_SEARCH_QUERIES, items: { type: "string" } },
-      suggestedCategory: { type: "string" }
+      suggestedCategory: { type: "string" },
+      saleNotes: { type: "string" }
     }
   }
 };

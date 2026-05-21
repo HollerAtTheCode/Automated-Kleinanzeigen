@@ -53,7 +53,8 @@ export async function searchKleinanzeigen(queries: string[], analysis?: ProductA
             source.innerText;
           const location =
             source.querySelector<HTMLElement>(".aditem-main--top--left, [class*='location'], [data-testid*='location']")?.innerText?.trim() ?? "";
-          return { title, price, location, href: link?.href ?? "" };
+          const description = source.innerText?.replace(/\s+/g, " ").trim().slice(0, 600) ?? "";
+          return { title, price, location, href: link?.href ?? "", description };
         })
       );
 
@@ -67,8 +68,27 @@ export async function searchKleinanzeigen(queries: string[], analysis?: ProductA
           price: parsePrice(item.price),
           location: item.location,
           url: item.href,
-          score: scoreListing(item.title, query, analysis)
+          score: scoreListing(item.title, query, analysis),
+          description: item.description
         });
+      }
+    }
+
+    const topListings = [...listings.values()].sort((a, b) => b.score - a.score).slice(0, 5);
+    for (const listing of topListings) {
+      try {
+        await page.goto(listing.url, { waitUntil: "domcontentloaded", timeout: 15_000 });
+        await page.waitForTimeout(600);
+        const detailText = await page
+          .locator("#viewad-description-text, [data-testid*='description'], .boxedarticle--details, article")
+          .first()
+          .innerText({ timeout: 2500 })
+          .catch(() => "");
+        if (detailText.trim()) {
+          listing.description = detailText.replace(/\s+/g, " ").trim().slice(0, 1200);
+        }
+      } catch {
+        // Listing detail pages are best-effort context only.
       }
     }
   } finally {
