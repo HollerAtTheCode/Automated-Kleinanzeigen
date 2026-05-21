@@ -1,8 +1,8 @@
 # Automated Kleinanzeigen
 
-Automated Kleinanzeigen is a local-first assistant for preparing private Kleinanzeigen listings. It helps turn product photos into editable listing content, researches active Kleinanzeigen offer prices, and can open a separate browser profile to prefill the listing for manual review.
+Automated Kleinanzeigen is a local-first assistant for preparing private Kleinanzeigen listings. It helps turn product photos into editable listing content, researches active Kleinanzeigen offer prices, and can open a separate browser profile to prefill the listing form for manual review.
 
-The app does not blind-post listings. The final login, category selection, image upload check, content review, and publishing click stay with the user.
+The app does not blind-post listings. It can assist with prefilling title, description, price, price type, condition, category, and images, but the final login, review, and publishing click stay with the user.
 
 ## Intended Use
 
@@ -16,8 +16,8 @@ Keep the default loopback binding unless you fully understand the local-network 
 - Product recognition and listing data extraction through the OpenAI Responses API.
 - Active Kleinanzeigen comparison search through Playwright.
 - Robust price recommendation with manual outlier/exclusion controls.
-- Editable listing title, description, category hint, price rationale, and missing-facts checklist.
-- Assisted Kleinanzeigen browser flow with a dedicated persistent local profile.
+- Editable listing title, description, category hint, price, price type, handover mode, and comparison sources.
+- Assisted Kleinanzeigen browser flow with a dedicated persistent local profile and best-effort form prefilling.
 - Session-only handling for uploaded images, analysis results, comparison sources, and listing content.
 
 ## Safety Model
@@ -31,6 +31,7 @@ This project is designed as a local private-sale assistant, not a hosted service
 - `.env`, `.runtime/`, build output, Playwright reports, and test artifacts are ignored by Git.
 - The OpenAI API key is read from environment variables and is never stored by the app.
 - Kleinanzeigen login cookies live only in the separate Playwright profile directory.
+- The assisted browser flow never clicks the final publish action.
 
 Kleinanzeigen is a third-party service. This project is not affiliated with, endorsed by, or supported by Kleinanzeigen. Use it in a way that respects Kleinanzeigen' terms and your account security.
 
@@ -88,9 +89,14 @@ npx playwright install chromium
 - `GET /api/session/:id`
 - `POST /api/session/:id/images`
 - `POST /api/session/:id/analyze`
+- `POST /api/session/:id/analysis`
 - `POST /api/session/:id/price-search`
+- `POST /api/session/:id/price-recommendation`
+- `POST /api/session/:id/sale-notes`
 - `POST /api/session/:id/draft`
 - `POST /api/session/:id/publish-assist`
+- `GET /api/settings`
+- `POST /api/settings/openai-key`
 
 ## Data Retention
 
