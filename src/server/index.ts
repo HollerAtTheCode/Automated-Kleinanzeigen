@@ -214,7 +214,7 @@ app.post("/api/session/:id/publish-assist", async (req, res, next) => {
       res.status(400).json({ error: "Die Anzeige muss zuerst vorbereitet werden." });
       return;
     }
-    const state = await startPublishAssist(session.draft);
+    const state = await startPublishAssist(session.draft, session.images);
     session.publishAssist = state;
     res.json(state);
   } catch (error) {

@@ -3,11 +3,12 @@ import path from "node:path";
 import { chromium, type Page } from "playwright";
 import type { ListingDraft, PublishAssistState } from "../shared/types.js";
 import { config } from "./config.js";
+import type { StoredUploadedImage } from "./sessionStore.js";
 
 const POST_FORM_SELECTORS = ["input[name='title']", "input#postad-title", "input[placeholder*='Titel']"];
 const START_URL = "https://www.kleinanzeigen.de/";
 
-export async function startPublishAssist(draft: ListingDraft): Promise<PublishAssistState> {
+export async function startPublishAssist(draft: ListingDraft, images: StoredUploadedImage[] = []): Promise<PublishAssistState> {
   await fs.mkdir(config.playwrightProfileDir, { recursive: true });
   const context = await chromium.launchPersistentContext(config.playwrightProfileDir, {
     headless: false,
@@ -39,6 +40,9 @@ export async function startPublishAssist(draft: ListingDraft): Promise<PublishAs
       ["textarea[name='description']", "textarea#pstad-descrptn", "textarea[placeholder*='Beschreibung']"],
       draft.description
     );
+    await selectPriceType(page, draft.priceType);
+    await selectCategory(page, draft.categoryHint);
+    await uploadImages(page, orderedImagePaths(images, draft.imageOrder));
 
     return {
       status: "ready_for_user",
@@ -52,6 +56,13 @@ export async function startPublishAssist(draft: ListingDraft): Promise<PublishAs
       url: page.url()
     };
   }
+}
+
+function orderedImagePaths(images: StoredUploadedImage[], imageOrder: string[]) {
+  const byId = new Map(images.map((image) => [image.id, image]));
+  const ordered = imageOrder.map((id) => byId.get(id)).filter((image): image is StoredUploadedImage => Boolean(image));
+  const remaining = images.filter((image) => !imageOrder.includes(image.id));
+  return [...ordered, ...remaining].map((image) => image.path);
 }
 
 async function openPostForm(page: Page) {
@@ -114,6 +125,85 @@ async function fillFirstAvailable(page: Page, selectors: string[], value: string
     if (!(await locator.isVisible().catch(() => false))) continue;
     await locator.fill(value);
     return true;
+  }
+  return false;
+}
+
+async function selectPriceType(page: Page, priceType: ListingDraft["priceType"]) {
+  const wanted = priceType === "negotiable" ? [/verhandlungsbasis/i, /^vb$/i] : [/festpreis/i];
+  const selects = await page.locator("select").all();
+  for (const select of selects) {
+    if (!(await select.isVisible().catch(() => false))) continue;
+    const options = await select.locator("option").evaluateAll((nodes) =>
+      nodes.map((node) => ({ value: (node as HTMLOptionElement).value, text: (node.textContent ?? "").trim() }))
+    );
+    const match = options.find((option) => wanted.some((pattern) => pattern.test(option.text) || pattern.test(option.value)));
+    if (!match) continue;
+    await select.selectOption(match.value);
+    return true;
+  }
+
+  for (const pattern of wanted) {
+    const text = pattern.source.includes("vb") ? "VB" : priceType === "negotiable" ? "Verhandlungsbasis" : "Festpreis";
+    if (await clickFirstAvailable(page, [`button:has-text('${text}')`, `[role='option']:has-text('${text}')`, `text=${text}`])) return true;
+  }
+  return false;
+}
+
+async function selectCategory(page: Page, categoryHint?: string) {
+  const categoryOptions = await page.locator("input[type='radio']").evaluateAll((nodes) =>
+    nodes.map((node, index) => {
+      const input = node as HTMLInputElement;
+      const label = input.closest("label");
+      const row = input.parentElement;
+      return {
+        index,
+        checked: input.checked,
+        text: (label?.textContent ?? row?.textContent ?? "").replace(/\s+/g, " ").trim()
+      };
+    })
+  );
+  const candidates = categoryOptions.filter((option) => option.text.includes("→"));
+  if (candidates.some((option) => option.checked)) return true;
+  const wantedTokens = normalizeCategoryText(categoryHint ?? "")
+    .split(" ")
+    .filter((token) => token.length > 3 && !["elektronik", "zubehor", "weitere"].includes(token));
+  const ranked = candidates
+    .map((option) => ({
+      ...option,
+      score: wantedTokens.filter((token) => normalizeCategoryText(option.text).includes(token)).length
+    }))
+    .sort((a, b) => b.score - a.score);
+  const selected = ranked[0];
+  if (!selected) return false;
+  const radio = page.locator("input[type='radio']").nth(selected.index);
+  await radio.check();
+  return true;
+}
+
+function normalizeCategoryText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, " ")
+    .replace(/[ä]/g, "a")
+    .replace(/[ö]/g, "o")
+    .replace(/[ü]/g, "u")
+    .replace(/[ß]/g, "ss")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function uploadImages(page: Page, imagePaths: string[]) {
+  if (imagePaths.length === 0) return false;
+  const fileInputs = await page.locator("input[type='file']").all();
+  for (const input of fileInputs) {
+    try {
+      await input.setInputFiles(imagePaths);
+      return true;
+    } catch {
+      // Try the next input if Kleinanzeigen keeps multiple file controls on the page.
+    }
   }
   return false;
 }
