@@ -19,6 +19,7 @@ The app does not blind-post listings. The final login, category selection, image
 This project is designed as a local private-sale assistant, not a bulk-posting or account automation tool.
 
 - The server binds to `127.0.0.1` by default.
+- Non-loopback bind addresses require `ALLOW_NON_LOOPBACK_HOST=true` because the local API is intentionally unauthenticated.
 - There is no permissive CORS middleware.
 - Uploaded image filesystem paths are kept server-side and are not returned in API responses.
 - `.env`, `.runtime/`, build output, Playwright reports, and test artifacts are ignored by Git.
@@ -57,6 +58,7 @@ Open `http://127.0.0.1:5173`.
 | `OPENAI_MODEL` | `gpt-5.1` | Model used with the Responses API. |
 | `PORT` | `5173` | Local server port. |
 | `HOST` | `127.0.0.1` | Local bind address. Keep this loopback-only unless you know the risk. |
+| `ALLOW_NON_LOOPBACK_HOST` | empty | Must be `true` before `HOST` can bind outside `localhost`, `127.0.0.1`, or `::1`. |
 | `SESSION_DIR` | `.runtime/sessions` | Temporary session data location. |
 | `PLAYWRIGHT_PROFILE_DIR` | `.runtime/browser-profile` | Persistent Kleinanzeigen browser profile. |
 

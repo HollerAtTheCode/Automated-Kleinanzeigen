@@ -4,6 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import type { ComparableListing, ListingDraft, ProductAnalysis, SessionState, UploadedImage } from "../shared/types.js";
 import { config } from "./config.js";
+import { parseSessionId } from "./validators.js";
 
 export type StoredUploadedImage = UploadedImage & { path: string };
 export type StoredSessionState = Omit<SessionState, "images"> & { images: StoredUploadedImage[] };
@@ -37,7 +38,8 @@ export async function createSession(): Promise<StoredSessionState> {
 }
 
 export function getSession(id: string): StoredSessionState {
-  const session = sessions.get(id);
+  const safeId = parseSessionId(id);
+  const session = sessions.get(safeId);
   if (!session) {
     throw Object.assign(new Error("Session not found"), { statusCode: 404 });
   }
@@ -69,7 +71,8 @@ export function setDraft(id: string, draft: ListingDraft) {
 }
 
 export async function sessionUploadDir(id: string) {
-  const dir = path.join(config.sessionDir, id, "images");
+  const session = getSession(id);
+  const dir = path.join(config.sessionDir, session.id, "images");
   await ensureDir(dir);
   return dir;
 }

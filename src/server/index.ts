@@ -8,6 +8,8 @@ import { analyzeProduct, generateDraft } from "./openaiClient.js";
 import { recommendPrice } from "./pricing.js";
 import { searchKleinanzeigen } from "./kleinanzeigen.js";
 import { startPublishAssist } from "./publishAssist.js";
+import { acceptsDeclaredImageType, assertValidUploadedImages, safeImageExtension } from "./uploads.js";
+import { parseExcludedListingIds, parseSearchQueries } from "./validators.js";
 import {
   addImages,
   createSession,
@@ -39,13 +41,17 @@ const upload = multer({
       }
     },
     filename: (_req, file, cb) => {
-      const extension = path.extname(file.originalname);
+      const extension = safeImageExtension(file.originalname, file.mimetype);
       cb(null, `${crypto.randomUUID()}${extension}`);
     }
   }),
   limits: { fileSize: 12 * 1024 * 1024, files: 12 },
   fileFilter: (_req, file, cb) => {
-    cb(null, file.mimetype.startsWith("image/"));
+    if (!acceptsDeclaredImageType(file.mimetype)) {
+      cb(Object.assign(new Error("Unsupported image type."), { statusCode: 400 }));
+      return;
+    }
+    cb(null, true);
   }
 });
 
@@ -65,9 +71,10 @@ app.get("/api/session/:id", (req, res, next) => {
   }
 });
 
-app.post("/api/session/:id/images", upload.array("images"), (req, res, next) => {
+app.post("/api/session/:id/images", upload.array("images"), async (req, res, next) => {
   try {
     const files = (req.files ?? []) as Express.Multer.File[];
+    await assertValidUploadedImages(files);
     const images: StoredUploadedImage[] = files.map((file) => ({
       id: crypto.randomUUID(),
       filename: file.originalname,
@@ -94,7 +101,7 @@ app.post("/api/session/:id/analyze", async (req, res, next) => {
 app.post("/api/session/:id/price-search", async (req, res, next) => {
   try {
     const session = getSession(param(req.params.id));
-    const queries = req.body?.queries ?? session.analysis?.searchQueries ?? [];
+    const queries = parseSearchQueries(req.body?.queries, session.analysis?.searchQueries ?? []);
     const comparables = await searchKleinanzeigen(queries, session.analysis);
     res.json(setComparables(session.id, comparables).comparables);
   } catch (error) {
@@ -105,7 +112,7 @@ app.post("/api/session/:id/price-search", async (req, res, next) => {
 app.post("/api/session/:id/draft", async (req, res, next) => {
   try {
     const session = getSession(param(req.params.id));
-    const excludedIds = new Set<string>(req.body?.excludedListingIds ?? []);
+    const excludedIds = parseExcludedListingIds(req.body?.excludedListingIds);
     const comparables: ComparableListing[] = session.comparables.map((listing) => ({
       ...listing,
       excluded: excludedIds.has(listing.id)
@@ -135,9 +142,14 @@ app.post("/api/session/:id/publish-assist", async (req, res, next) => {
 });
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const statusCode = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : 500;
+  const statusCode =
+    error instanceof multer.MulterError
+      ? 400
+      : typeof error === "object" && error && "statusCode" in error
+        ? Number(error.statusCode)
+        : 500;
   res.status(Number.isFinite(statusCode) ? statusCode : 500).json({
-    error: error instanceof Error ? error.message : "Unexpected server error"
+    error: error instanceof multer.MulterError ? "Invalid image upload." : error instanceof Error ? error.message : "Unexpected server error"
   });
 });
 
