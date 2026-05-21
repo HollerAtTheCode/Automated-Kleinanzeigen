@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import OpenAI from "openai";
 import type { ListingDraft, PriceRecommendation, ProductAnalysis } from "../shared/types.js";
-import { config } from "./config.js";
+import { config, getOpenaiApiKey } from "./config.js";
 import type { StoredSessionState } from "./sessionStore.js";
 import { ProductAnalysisSchema, parseJsonObject } from "./validators.js";
 
@@ -18,13 +18,16 @@ function fallbackAnalysis(): ProductAnalysis {
 }
 
 function makeClient() {
-  if (!config.openaiApiKey) return null;
-  return new OpenAI({ apiKey: config.openaiApiKey });
+  const apiKey = getOpenaiApiKey();
+  if (!apiKey) return null;
+  return new OpenAI({ apiKey });
 }
 
 export async function analyzeProduct(session: StoredSessionState): Promise<ProductAnalysis> {
   const client = makeClient();
-  if (!client) return fallbackAnalysis();
+  if (!client) {
+    throw Object.assign(new Error("Für die automatische Bildanalyse fehlt ein OpenAI API-Key."), { statusCode: 428 });
+  }
 
   const imageInputs = await Promise.all(
     session.images.slice(0, 8).map(async (image) => ({

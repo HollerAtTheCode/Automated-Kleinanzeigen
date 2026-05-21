@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import express from "express";
 import multer from "multer";
 import { createServer as createViteServer } from "vite";
-import { config } from "./config.js";
+import { config, hasOpenaiApiKey, setRuntimeOpenaiApiKey } from "./config.js";
 import { analyzeProduct, generateDraft } from "./openaiClient.js";
 import { recommendPrice } from "./pricing.js";
 import { searchKleinanzeigen } from "./kleinanzeigen.js";
@@ -58,6 +58,22 @@ const upload = multer({
 app.post("/api/session", async (_req, res, next) => {
   try {
     res.json(publicSession(await createSession()));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/settings", (_req, res) => {
+  res.json({
+    hasOpenaiApiKey: hasOpenaiApiKey(),
+    openaiModel: config.openaiModel
+  });
+});
+
+app.post("/api/settings/openai-key", (req, res, next) => {
+  try {
+    setRuntimeOpenaiApiKey(String(req.body?.apiKey ?? ""));
+    res.json({ hasOpenaiApiKey: true, openaiModel: config.openaiModel });
   } catch (error) {
     next(error);
   }

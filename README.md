@@ -42,7 +42,7 @@ npm install
 cp .env.example .env
 ```
 
-Set `OPENAI_API_KEY` in `.env` for live AI analysis. Without a key, the app keeps working with conservative fallback data for local development and tests.
+Set `OPENAI_API_KEY` in `.env` for live AI analysis, or paste a key into the local setup panel in the app. Runtime keys entered in the UI are held only in server memory and are not persisted. Without a key, automatic image analysis is disabled instead of returning placeholder results.
 
 ```bash
 npm run dev

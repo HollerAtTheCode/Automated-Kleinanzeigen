@@ -173,6 +173,30 @@ dd {
   background: #e6eddf;
 }
 
+.setupPanel {
+  width: min(100%, 620px);
+  display: grid;
+  gap: 10px;
+  text-align: center;
+  border: 1px solid #dde4d7;
+  border-radius: 8px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.keyRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 10px;
+}
+
+.keyRow input {
+  min-height: 44px;
+  border: 1px solid #cfd8c8;
+  border-radius: 6px;
+  padding: 0 12px;
+}
+
 .primary {
   background: #2f6f4e;
   color: white;
@@ -385,5 +409,9 @@ textarea {
   .listing strong,
   .listing a {
     justify-self: start;
+  }
+
+  .keyRow {
+    grid-template-columns: 1fr;
   }
 }

@@ -6,6 +6,11 @@ import "./styles.css";
 
 type Step = "upload" | "analysis" | "pricing" | "draft" | "publish";
 
+type Settings = {
+  hasOpenaiApiKey: boolean;
+  openaiModel: string;
+};
+
 const conditionLabels: Record<ProductAnalysis["condition"], string> = {
   new: "Neu",
   like_new: "Wie neu",
@@ -28,6 +33,8 @@ function App() {
   const [session, setSession] = useState<SessionState | null>(null);
   const [step, setStep] = useState<Step>("upload");
   const [files, setFiles] = useState<File[]>([]);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [apiKey, setApiKey] = useState("");
   const [analysis, setAnalysis] = useState<ProductAnalysis | null>(null);
   const [productForm, setProductForm] = useState({
     productType: "",
@@ -45,6 +52,7 @@ function App() {
 
   useEffect(() => {
     api<SessionState>("/api/session", { method: "POST" }).then(setSession).catch((err: Error) => setError(err.message));
+    api<Settings>("/api/settings").then(setSettings).catch((err: Error) => setError(err.message));
   }, []);
 
   const run = async <T,>(label: string, task: () => Promise<T>) => {
@@ -66,7 +74,7 @@ function App() {
   }, []);
 
   const uploadAndAnalyze = async () => {
-    if (!session || files.length === 0) return;
+    if (!session || files.length === 0 || !settings?.hasOpenaiApiKey) return;
     await run("Bilder werden analysiert", async () => {
       const form = new FormData();
       files.forEach((file) => form.append("images", file));
@@ -83,6 +91,18 @@ function App() {
         notes: ""
       });
       setStep("analysis");
+    });
+  };
+
+  const saveApiKey = async () => {
+    await run("API-Key wird verbunden", async () => {
+      const updated = await api<Settings>("/api/settings/openai-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey })
+      });
+      setSettings(updated);
+      setApiKey("");
     });
   };
 
@@ -207,6 +227,24 @@ function App() {
             onDragOver={(event) => event.preventDefault()}
           >
             <ImagePlus size={32} />
+            {!settings?.hasOpenaiApiKey && (
+              <div className="setupPanel">
+                <h2>Automatische Analyse aktivieren</h2>
+                <p>Für die Bilderkennung braucht die App einen OpenAI API-Key. Der Key wird nur lokal im laufenden Serverprozess gehalten.</p>
+                <div className="keyRow">
+                  <input
+                    type="password"
+                    value={apiKey}
+                    placeholder="OpenAI API-Key"
+                    autoComplete="off"
+                    onChange={(event) => setApiKey(event.target.value)}
+                  />
+                  <button className="primary" disabled={apiKey.trim().length < 20 || !!busy} onClick={saveApiKey}>
+                    Verbinden
+                  </button>
+                </div>
+              </div>
+            )}
             <input id="images" type="file" accept="image/*" multiple onChange={(event) => event.target.files && selectFiles(event.target.files)} />
             <label htmlFor="images">Produktbilder auswählen</label>
             <div className="thumbs">
@@ -216,7 +254,7 @@ function App() {
                 </figure>
               ))}
             </div>
-            <button className="primary" disabled={!files.length || !!busy} onClick={uploadAndAnalyze}>
+            <button className="primary" disabled={!files.length || !settings?.hasOpenaiApiKey || !!busy} onClick={uploadAndAnalyze}>
               <Sparkles size={18} />
               Analyse starten
             </button>

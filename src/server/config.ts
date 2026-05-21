@@ -19,8 +19,25 @@ export const config = {
   rootDir,
   port: Number(process.env.PORT ?? 5173),
   host,
-  openaiApiKey: process.env.OPENAI_API_KEY,
   openaiModel: process.env.OPENAI_MODEL ?? "gpt-5.1",
   sessionDir: path.resolve(rootDir, process.env.SESSION_DIR ?? ".runtime/sessions"),
   playwrightProfileDir: path.resolve(rootDir, process.env.PLAYWRIGHT_PROFILE_DIR ?? ".runtime/browser-profile")
 };
+
+let runtimeOpenaiApiKey = process.env.OPENAI_API_KEY?.trim() || "";
+
+export function getOpenaiApiKey() {
+  return runtimeOpenaiApiKey;
+}
+
+export function hasOpenaiApiKey() {
+  return runtimeOpenaiApiKey.length > 0;
+}
+
+export function setRuntimeOpenaiApiKey(value: string) {
+  const key = value.trim();
+  if (key.length < 20) {
+    throw Object.assign(new Error("Der OpenAI API-Key ist zu kurz."), { statusCode: 400 });
+  }
+  runtimeOpenaiApiKey = key;
+}
