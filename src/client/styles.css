@@ -183,16 +183,20 @@ dd {
 }
 
 .thumbs {
-  width: 100%;
+  width: min(100%, 720px);
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 160px));
   gap: 12px;
+  justify-content: center;
+  justify-items: center;
 }
 
 figure {
+  width: 100%;
   margin: 0;
   display: grid;
   gap: 6px;
+  justify-items: center;
 }
 
 figure img {
