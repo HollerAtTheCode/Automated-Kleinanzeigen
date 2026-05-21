@@ -86,7 +86,7 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
             {
               type: "input_text",
               text:
-                "Analysiere diese Produktbilder für einen privaten Kleinanzeigen-Verkauf. Fülle alle Felder im vorgegebenen Schema. saleNotes soll ein kurzer, eigener Text für Hinweise oder Mängel sein: sichtbarer Zustand, sichtbares Zubehör, sichtbare Gebrauchsspuren und erkennbare Mängel. Erfinde keine Mängel. Wenn keine Mängel erkennbar sind, formuliere das vorsichtig anhand der Fotos. Wenn Marke, Modell, Kategorie oder Zustand nicht sicher erkennbar sind, nutze leere Strings beziehungsweise unknown und stelle konkrete Rückfragen in openQuestions."
+                "Analysiere diese Produktbilder für einen privaten Kleinanzeigen-Verkauf. Fülle alle Felder im vorgegebenen Schema. saleNotes soll bereits wie ein natürlicher Text aus Sicht des Verkäufers klingen, nicht wie eine externe Bildbeobachtung. Schreibe in der Ich-Form, mit 2 bis 4 kurzen Absätzen, verkaufsnah und sachlich. Beschreibe Zustand, Zubehör und erkennbare Gebrauchsspuren so, als würde ich meinen eigenen Artikel anbieten. Verwende keine Formulierungen wie 'auf den Fotos sichtbar', 'sichtbarer Zustand', 'wirkt' oder 'anhand der Bilder'. Erfinde keine Mängel. Wenn keine Mängel erkennbar sind, schreibe vorsichtig, dass mir keine Mängel bekannt sind. Wenn Marke, Modell, Kategorie oder Zustand nicht sicher erkennbar sind, nutze leere Strings beziehungsweise unknown und stelle konkrete Rückfragen in openQuestions."
             },
             ...imageInputs
           ]
@@ -125,7 +125,7 @@ export async function generateSaleNotes(session: StoredSessionState): Promise<st
               type: "input_text",
               text: JSON.stringify({
                 instruction:
-                  "Schreibe einen kurzen Text für das Feld 'Hinweise oder Mängel' einer privaten Kleinanzeigen-Anzeige. Nutze Bildanalyse, Zustand, Zubehör und typische Informationen aus ähnlichen Anzeigen als Kontext. Kopiere keine fremden Anzeigen wörtlich. Erwähne Mängel nur, wenn sie angegeben oder auf Fotos erkennbar sind. Keine Werbesprache, keine Garantien.",
+                  "Schreibe den Text für das Feld 'Hinweise oder Mängel' einer privaten Kleinanzeigen-Anzeige komplett neu. Perspektive: Ich verkaufe meinen eigenen Artikel. Stil: natürlich, verkaufsnah, freundlich, aber sachlich. Struktur: 2 bis 4 kurze Absätze mit Leerzeilen. Nutze Zustand, Zubehör und typische Informationen aus ähnlichen Anzeigen als Kontext, aber kopiere keine fremden Anzeigen wörtlich. Keine distanzierten Bildanalyse-Formulierungen wie 'auf den Fotos sichtbar', 'sichtbarer Zustand', 'wirkt', 'erkennbar' oder 'anhand der Bilder'. Erwähne Mängel nur, wenn sie vom Nutzer angegeben wurden oder aus der Analyse klar hervorgehen. Wenn keine Mängel bekannt sind, formuliere das aus Verkäufersicht vorsichtig. Keine Garantien und keine übertriebene Werbesprache.",
                 product: analysis,
                 comparableListings: session.comparables.slice(0, 8).map((listing) => ({
                   title: listing.title,

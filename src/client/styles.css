@@ -322,7 +322,8 @@ dt {
 }
 
 .formPanel textarea.compact {
-  min-height: 96px;
+  min-height: 170px;
+  line-height: 1.45;
 }
 
 .nextAction {
