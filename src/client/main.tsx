@@ -262,73 +262,53 @@ function App() {
         )}
 
         {step === "analysis" && analysis && (
-          <section className="grid two">
-            <form className="panel formPanel" onSubmit={(event) => event.preventDefault()}>
+          <section className="productStep">
+            <form className="panel formPanel productForm" onSubmit={(event) => event.preventDefault()}>
               <h2>Produktangaben</h2>
-              <label>
-                Produkt
-                <input value={productForm.productType} onChange={(event) => setProductForm({ ...productForm, productType: event.target.value })} />
-              </label>
-              <label>
-                Marke
-                <input value={productForm.brand} onChange={(event) => setProductForm({ ...productForm, brand: event.target.value })} />
-              </label>
-              <label>
-                Modell
-                <input value={productForm.model} onChange={(event) => setProductForm({ ...productForm, model: event.target.value })} />
-              </label>
-              <label>
-                Zustand
-                <select
-                  value={productForm.condition}
-                  onChange={(event) => setProductForm({ ...productForm, condition: event.target.value as ProductAnalysis["condition"] })}
-                >
-                  {Object.entries(conditionLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Kategorie
-                <input value={productForm.category} onChange={(event) => setProductForm({ ...productForm, category: event.target.value })} />
-              </label>
-              <label>
-                Hinweise oder Mängel
-                <textarea
-                  className="compact"
-                  value={productForm.notes}
-                  onChange={(event) => setProductForm({ ...productForm, notes: event.target.value })}
-                />
-              </label>
-            </form>
-            <div className="panel">
-              <h2>Gefundene Hinweise</h2>
-              {Object.keys(analysis.detectedAttributes).length > 0 ? (
-                <div className="chips">
-                  {Object.entries(analysis.detectedAttributes).map(([key, value]) => (
-                    <span key={key}>
-                      {key}: {value}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p>Keine sicheren Zusatzangaben erkannt.</p>
-              )}
-              <div>
-                <h3>Suchbegriffe</h3>
-                <ul className="plain">
-                  {buildSearchQueries().map((query) => (
-                    <li key={query}>{query}</li>
-                  ))}
-                </ul>
+              <div className="formGrid">
+                <label>
+                  Produkt
+                  <input value={productForm.productType} onChange={(event) => setProductForm({ ...productForm, productType: event.target.value })} />
+                </label>
+                <label>
+                  Marke
+                  <input value={productForm.brand} onChange={(event) => setProductForm({ ...productForm, brand: event.target.value })} />
+                </label>
+                <label>
+                  Modell
+                  <input value={productForm.model} onChange={(event) => setProductForm({ ...productForm, model: event.target.value })} />
+                </label>
+                <label>
+                  Zustand
+                  <select
+                    value={productForm.condition}
+                    onChange={(event) => setProductForm({ ...productForm, condition: event.target.value as ProductAnalysis["condition"] })}
+                  >
+                    {Object.entries(conditionLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="spanTwo">
+                  Kategorie
+                  <input value={productForm.category} onChange={(event) => setProductForm({ ...productForm, category: event.target.value })} />
+                </label>
+                <label className="spanTwo">
+                  Hinweise oder Mängel
+                  <textarea
+                    className="compact"
+                    value={productForm.notes}
+                    onChange={(event) => setProductForm({ ...productForm, notes: event.target.value })}
+                  />
+                </label>
               </div>
-              <button className="primary" disabled={!!busy} onClick={searchPrices}>
+              <button className="primary nextAction" disabled={!!busy} onClick={searchPrices}>
                 <Search size={18} />
                 Vergleichsangebote finden
               </button>
-            </div>
+            </form>
           </section>
         )}
 

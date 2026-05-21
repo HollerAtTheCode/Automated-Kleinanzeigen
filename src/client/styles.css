@@ -238,6 +238,25 @@ figure img {
   gap: 18px;
 }
 
+.productStep {
+  display: grid;
+  justify-items: center;
+}
+
+.productForm {
+  width: min(100%, 760px);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.spanTwo {
+  grid-column: 1 / -1;
+}
+
 dl {
   display: grid;
   grid-template-columns: max-content 1fr;
@@ -287,6 +306,10 @@ dt {
 
 .formPanel textarea.compact {
   min-height: 96px;
+}
+
+.nextAction {
+  justify-self: stretch;
 }
 
 .panelHeader {
@@ -399,6 +422,10 @@ textarea {
   }
 
   .grid.two {
+    grid-template-columns: 1fr;
+  }
+
+  .formGrid {
     grid-template-columns: 1fr;
   }
 
