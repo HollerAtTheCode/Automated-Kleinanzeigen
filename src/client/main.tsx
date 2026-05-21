@@ -20,6 +20,16 @@ const conditionLabels: Record<ProductAnalysis["condition"], string> = {
   unknown: "Bitte auswählen"
 };
 
+const fulfillmentLabels = {
+  pickup: "Nur Abholung",
+  shipping: "Versand möglich"
+} as const;
+
+const priceTypeLabels = {
+  fixed: "Festpreis",
+  negotiable: "VB"
+} as const;
+
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   if (!response.ok) {
@@ -43,7 +53,9 @@ function App() {
     condition: "unknown" as ProductAnalysis["condition"],
     category: "",
     notes: "",
-    price: ""
+    price: "",
+    fulfillmentMethod: "shipping" as NonNullable<ProductAnalysis["fulfillmentMethod"]>,
+    priceType: "negotiable" as NonNullable<ProductAnalysis["priceType"]>
   });
   const [comparables, setComparables] = useState<ComparableListing[]>([]);
   const [priceRecommendation, setPriceRecommendation] = useState<PriceRecommendation | null>(null);
@@ -92,7 +104,9 @@ function App() {
         condition: result.condition,
         category: result.suggestedCategory && result.suggestedCategory !== "Sonstiges" ? result.suggestedCategory : "",
         notes: result.saleNotes ?? "",
-        price: ""
+        price: "",
+        fulfillmentMethod: result.fulfillmentMethod ?? "shipping",
+        priceType: result.priceType ?? "negotiable"
       });
       setPriceEdited(false);
       setStep("analysis");
@@ -155,6 +169,8 @@ function App() {
           condition: productForm.condition,
           suggestedCategory: category,
           saleNotes: productForm.notes.trim(),
+          fulfillmentMethod: productForm.fulfillmentMethod,
+          priceType: productForm.priceType,
           searchQueries: buildSearchQueries()
         })
       });
@@ -204,7 +220,9 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           excludedListingIds: [...excluded],
-          manualPrice: productForm.price.trim() ? Number(productForm.price) : undefined
+          manualPrice: productForm.price.trim() ? Number(productForm.price) : undefined,
+          fulfillmentMethod: productForm.fulfillmentMethod,
+          priceType: productForm.priceType
         })
       });
       setDraft(result);
@@ -377,6 +395,39 @@ function App() {
                     }}
                   />
                 </label>
+                <label>
+                  Übergabe
+                  <select
+                    value={productForm.fulfillmentMethod}
+                    onChange={(event) =>
+                      setProductForm({
+                        ...productForm,
+                        fulfillmentMethod: event.target.value as NonNullable<ProductAnalysis["fulfillmentMethod"]>
+                      })
+                    }
+                  >
+                    {Object.entries(fulfillmentLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Preisart
+                  <select
+                    value={productForm.priceType}
+                    onChange={(event) =>
+                      setProductForm({ ...productForm, priceType: event.target.value as NonNullable<ProductAnalysis["priceType"]> })
+                    }
+                  >
+                    {Object.entries(priceTypeLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="spanTwo">
                   Hinweise oder Mängel
                   <textarea
@@ -404,7 +455,20 @@ function App() {
               {priceRecommendation?.suggestedPrice && (
                 <div className="inlinePrice">
                   <span>Preisvorstellung</span>
-                  <strong>{productForm.price || priceRecommendation.suggestedPrice} EUR</strong>
+                  <label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      inputMode="numeric"
+                      value={productForm.price || String(priceRecommendation.suggestedPrice)}
+                      onChange={(event) => {
+                        setPriceEdited(true);
+                        setProductForm({ ...productForm, price: event.target.value });
+                      }}
+                    />
+                    <span>EUR</span>
+                  </label>
                 </div>
               )}
               <button className="primary" disabled={!comparables.length || !!busy} onClick={generateDraft}>

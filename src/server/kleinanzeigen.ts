@@ -2,16 +2,44 @@ import crypto from "node:crypto";
 import { chromium } from "playwright";
 import type { ComparableListing, ProductAnalysis } from "../shared/types.js";
 
+function normalizeText(value: string) {
+  return value.toLowerCase().replace(/[\u2010-\u2015]/g, "-").replace(/[^a-z0-9äöüß+]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function hasToken(text: string, token: string) {
+  return new RegExp(`(^|\\s)${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(text);
+}
+
+function isWantedListing(title: string, analysis?: ProductAnalysis) {
+  const normalizedTitle = normalizeText(title);
+  if (/^(suche|gesucht)\b/.test(normalizedTitle)) return false;
+  if (analysis?.condition !== "defective" && /\b(defekt|kaputt|beschädigt|ersatzteil)\b/.test(normalizedTitle)) return false;
+
+  const normalizedModel = normalizeText(analysis?.model ?? "");
+  const wantsPocket3 = hasToken(normalizedModel, "pocket") && hasToken(normalizedModel, "3");
+  if (wantsPocket3) {
+    return hasToken(normalizedTitle, "pocket") && hasToken(normalizedTitle, "3");
+  }
+
+  const modelTokens = normalizedModel.split(" ").filter((token) => token.length > 2 && !["combo", "creator", "set"].includes(token));
+  if (modelTokens.length >= 2) {
+    const matches = modelTokens.filter((token) => hasToken(normalizedTitle, token)).length;
+    return matches >= Math.ceil(modelTokens.length * 0.66);
+  }
+
+  return true;
+}
+
 function scoreListing(title: string, query: string, analysis?: ProductAnalysis) {
-  const haystack = title.toLowerCase();
+  const haystack = normalizeText(title);
   const terms = new Set(
     [query, analysis?.brand, analysis?.model, analysis?.productType]
       .filter(Boolean)
-      .flatMap((value) => String(value).toLowerCase().split(/\s+/))
+      .flatMap((value) => normalizeText(String(value)).split(/\s+/))
       .filter((term) => term.length > 2)
   );
   if (terms.size === 0) return 0.5;
-  const matches = [...terms].filter((term) => haystack.includes(term)).length;
+  const matches = [...terms].filter((term) => hasToken(haystack, term)).length;
   return Math.max(0.1, Math.min(1, matches / terms.size));
 }
 
@@ -75,6 +103,7 @@ export async function searchKleinanzeigen(queries: string[], analysis?: ProductA
 
       for (const item of items) {
         if (!item.title || !item.href) continue;
+        if (!isWantedListing(item.title, analysis)) continue;
         const id = crypto.createHash("sha1").update(item.href).digest("hex").slice(0, 12);
         listings.set(id, {
           id,

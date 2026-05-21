@@ -347,16 +347,29 @@ dt {
 .inlinePrice {
   display: grid;
   gap: 2px;
-  min-width: 150px;
+  min-width: 170px;
 }
 
-.inlinePrice span {
+.inlinePrice > span {
   color: #586458;
   font-size: 13px;
 }
 
-.inlinePrice strong {
-  font-size: 20px;
+.inlinePrice label {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) max-content;
+  gap: 8px;
+  align-items: center;
+  font-weight: 700;
+}
+
+.inlinePrice input {
+  min-height: 38px;
+  border: 1px solid #cfd8c8;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-weight: 700;
+  color: #172018;
 }
 
 .listings {

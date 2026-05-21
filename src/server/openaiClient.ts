@@ -14,7 +14,9 @@ function fallbackAnalysis(): ProductAnalysis {
     openQuestions: ["Was genau wird verkauft?", "Gibt es bekannte Mängel?", "Welches Zubehör ist enthalten?"],
     searchQueries: ["gebrauchter Artikel Kleinanzeigen"],
     suggestedCategory: "Sonstiges",
-    saleNotes: ""
+    saleNotes: "",
+    fulfillmentMethod: "shipping",
+    priceType: "negotiable"
   };
 }
 
@@ -148,17 +150,20 @@ export async function generateSaleNotes(session: StoredSessionState): Promise<st
 export async function generateDraft(session: StoredSessionState, price: PriceRecommendation): Promise<ListingDraft> {
   const analysis = session.analysis ?? fallbackAnalysis();
   const imageOrder = session.images.map((image) => image.id);
+  const fulfillmentMethod = analysis.fulfillmentMethod ?? "shipping";
+  const priceType = analysis.priceType ?? "negotiable";
   const titleParts = [analysis.brand, analysis.model, analysis.productType].filter(Boolean);
   const itemName = [analysis.brand, analysis.model].filter(Boolean).join(" ").trim() || analysis.productType || "Artikel";
   const title = titleParts.join(" ").replace(/\s+/g, " ").trim().slice(0, 80) || "Artikel zu verkaufen";
   const baseDescription =
     analysis.saleNotes?.trim() ||
     `Ich verkaufe ${itemName}. Der Artikel ist gebraucht und befindet sich in dem angegebenen Zustand.`;
-  const priceLine = price.suggestedPrice ? `Preisvorstellung: ${price.suggestedPrice} € VB` : "";
+  const priceLine = price.suggestedPrice ? `Preisvorstellung: ${price.suggestedPrice} €${priceType === "negotiable" ? " VB" : ""}` : "";
+  const fulfillmentLine = fulfillmentMethod === "pickup" ? "Nur Abholung." : "Versand oder Abholung nach Absprache möglich.";
   const description = [
     baseDescription,
     `Der Artikel wurde privat genutzt und wird wegen Nichtgebrauch abgegeben.`,
-    "Privatverkauf, keine Garantie oder Rücknahme durch mich. Versand oder Abholung nach Absprache möglich.",
+    `Privatverkauf, keine Garantie oder Rücknahme durch mich. ${fulfillmentLine}`,
     priceLine
   ]
     .filter(Boolean)
@@ -169,6 +174,8 @@ export async function generateDraft(session: StoredSessionState, price: PriceRec
     description,
     categoryHint: analysis.suggestedCategory,
     price,
+    priceType,
+    fulfillmentMethod,
     imageOrder,
     missingFacts: analysis.openQuestions
   };

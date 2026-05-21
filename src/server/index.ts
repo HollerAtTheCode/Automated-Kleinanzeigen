@@ -195,7 +195,12 @@ app.post("/api/session/:id/draft", async (req, res, next) => {
             rationale: "Preis manuell angepasst."
           }
         : price;
-    const draft = await generateDraft(session, finalPrice);
+    if (session.analysis) {
+      const fulfillmentMethod = req.body?.fulfillmentMethod === "pickup" ? "pickup" : "shipping";
+      const priceType = req.body?.priceType === "fixed" ? "fixed" : "negotiable";
+      setAnalysis(session.id, ProductAnalysisSchema.parse({ ...session.analysis, fulfillmentMethod, priceType }));
+    }
+    const draft = await generateDraft(getSession(session.id), finalPrice);
     res.json(setDraft(session.id, draft).draft);
   } catch (error) {
     next(error);

@@ -14,7 +14,9 @@ export const ProductAnalysisSchema = z.object({
   openQuestions: z.array(z.string()).catch([]),
   searchQueries: z.array(z.string()).min(1).catch(["gebrauchter Artikel"]),
   suggestedCategory: z.string().optional(),
-  saleNotes: z.string().optional()
+  saleNotes: z.string().optional(),
+  fulfillmentMethod: z.enum(["pickup", "shipping"]).catch("shipping"),
+  priceType: z.enum(["fixed", "negotiable"]).catch("negotiable")
 });
 
 export const AIProductAnalysisSchema = z.object({

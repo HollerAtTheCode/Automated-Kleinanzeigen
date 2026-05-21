@@ -16,6 +16,8 @@ export type ProductAnalysis = {
   searchQueries: string[];
   suggestedCategory?: string;
   saleNotes?: string;
+  fulfillmentMethod?: "pickup" | "shipping";
+  priceType?: "fixed" | "negotiable";
 };
 
 export type ComparableListing = {
@@ -46,6 +48,8 @@ export type ListingDraft = {
   description: string;
   categoryHint?: string;
   price: PriceRecommendation;
+  priceType: "fixed" | "negotiable";
+  fulfillmentMethod: "pickup" | "shipping";
   imageOrder: string[];
   missingFacts: string[];
 };
