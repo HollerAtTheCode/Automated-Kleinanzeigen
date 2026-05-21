@@ -40,9 +40,9 @@ export async function startPublishAssist(draft: ListingDraft, images: StoredUplo
       ["textarea[name='description']", "textarea#pstad-descrptn", "textarea[placeholder*='Beschreibung']"],
       draft.description
     );
-    await selectPriceType(page, draft.priceType);
     await selectCategory(page, draft.categoryHint);
     await uploadImages(page, orderedImagePaths(images, draft.imageOrder));
+    await selectPriceType(page, draft.priceType);
 
     return {
       status: "ready_for_user",
@@ -143,11 +143,10 @@ async function selectPriceType(page: Page, priceType: ListingDraft["priceType"])
         `[role='option']:has-text('${targetLabel}')`,
         `[role='menuitem']:has-text('${targetLabel}')`,
         `button:has-text('${targetLabel}')`,
-        `li:has-text('${targetLabel}')`,
-        `div:has-text('${targetLabel}')`
+        `li:has-text('${targetLabel}')`
       ])
     ) {
-      return true;
+      return verifyPriceType(page, targetValue, targetLabel);
     }
   }
 
@@ -160,26 +159,16 @@ async function selectPriceType(page: Page, priceType: ListingDraft["priceType"])
     const match = options.find((option) => wanted.some((pattern) => pattern.test(option.text) || pattern.test(option.value)));
     if (!match) continue;
     await select.selectOption(match.value);
-    return true;
+    return verifyPriceType(page, targetValue, targetLabel);
   }
 
   for (const text of [targetLabel, priceType === "negotiable" ? "VB" : "Festpreis"]) {
-    if (await clickFirstAvailable(page, [`button:has-text('${text}')`, `[role='option']:has-text('${text}')`, `text=${text}`])) return true;
+    if (await clickFirstAvailable(page, [`button:has-text('${text}')`, `[role='option']:has-text('${text}')`, `text=${text}`])) {
+      return verifyPriceType(page, targetValue, targetLabel);
+    }
   }
 
-  return page.evaluate(
-    ({ value, label }) => {
-      const input = document.querySelector<HTMLInputElement>("input[name='priceType']");
-      if (!input) return false;
-      input.value = value;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-      const selected = document.querySelector<HTMLElement>("#ad-price-type-selected-option");
-      if (selected) selected.textContent = label;
-      return true;
-    },
-    { value: targetValue, label: targetLabel }
-  );
+  return setPriceTypeFallback(page, targetValue, targetLabel);
 }
 
 async function selectCategory(page: Page, categoryHint?: string) {
@@ -190,6 +179,9 @@ async function selectCategory(page: Page, categoryHint?: string) {
       const row = input.parentElement;
       return {
         index,
+        id: input.id,
+        name: input.name,
+        value: input.value,
         checked: input.checked,
         text: (label?.textContent ?? row?.textContent ?? "").replace(/\s+/g, " ").trim()
       };
@@ -197,20 +189,28 @@ async function selectCategory(page: Page, categoryHint?: string) {
   );
   const candidates = categoryOptions.filter((option) => option.text.includes("→"));
   if (candidates.some((option) => option.checked)) return true;
-  const wantedTokens = normalizeCategoryText(categoryHint ?? "")
+  const wantedTokens = expandCategoryTokens(normalizeCategoryText(categoryHint ?? ""))
     .split(" ")
     .filter((token) => token.length > 3 && !["elektronik", "zubehor", "weitere"].includes(token));
   const ranked = candidates
     .map((option) => ({
       ...option,
-      score: wantedTokens.filter((token) => normalizeCategoryText(option.text).includes(token)).length
+      score: wantedTokens.filter((token) => expandCategoryTokens(normalizeCategoryText(option.text)).includes(token)).length
     }))
     .sort((a, b) => b.score - a.score);
   const selected = ranked[0];
   if (!selected) return false;
-  const radio = page.locator("input[type='radio']").nth(selected.index);
-  await radio.check();
-  return true;
+  return page.evaluate((target) => {
+    const radios = [...document.querySelectorAll<HTMLInputElement>("input[type='radio']")];
+    const radio = radios[target.index];
+    if (!radio) return false;
+    radio.checked = true;
+    radio.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    radio.dispatchEvent(new Event("input", { bubbles: true }));
+    radio.dispatchEvent(new Event("change", { bubbles: true }));
+    radio.closest("label")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    return true;
+  }, selected);
 }
 
 function normalizeCategoryText(value: string) {
@@ -226,18 +226,64 @@ function normalizeCategoryText(value: string) {
     .trim();
 }
 
+function expandCategoryTokens(value: string) {
+  const tokens = value.split(" ").filter(Boolean);
+  const expanded = new Set(tokens);
+  for (const token of tokens) {
+    if (token.endsWith("s") && token.length > 4) expanded.add(token.slice(0, -1));
+    if (token === "kameras" || token === "kamera") {
+      expanded.add("foto");
+      expanded.add("kamera");
+      expanded.add("kameras");
+    }
+    if (token === "camcorder" || token === "actioncams" || token === "actioncam") {
+      expanded.add("foto");
+      expanded.add("kamera");
+    }
+  }
+  return [...expanded].join(" ");
+}
+
 async function uploadImages(page: Page, imagePaths: string[]) {
   if (imagePaths.length === 0) return false;
+  await page.waitForTimeout(500);
   const fileInputs = await page.locator("input[type='file']").all();
   for (const input of fileInputs) {
     try {
       await input.setInputFiles(imagePaths);
+      await page.waitForTimeout(1000);
       return true;
     } catch {
       // Try the next input if Kleinanzeigen keeps multiple file controls on the page.
     }
   }
   return false;
+}
+
+async function verifyPriceType(page: Page, targetValue: string, targetLabel: string) {
+  await page.waitForTimeout(250);
+  const state = await page.evaluate(() => ({
+    value: document.querySelector<HTMLInputElement>("input[name='priceType']")?.value ?? "",
+    label: document.querySelector<HTMLElement>("#ad-price-type-selected-option")?.textContent?.trim() ?? ""
+  }));
+  if (state.value === targetValue || state.label === targetLabel) return true;
+  return setPriceTypeFallback(page, targetValue, targetLabel);
+}
+
+async function setPriceTypeFallback(page: Page, targetValue: string, targetLabel: string) {
+  return page.evaluate(
+    ({ value, label }) => {
+      const input = document.querySelector<HTMLInputElement>("input[name='priceType']");
+      if (!input) return false;
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      const selected = document.querySelector<HTMLElement>("#ad-price-type-selected-option");
+      if (selected) selected.textContent = label;
+      return true;
+    },
+    { value: targetValue, label: targetLabel }
+  );
 }
 
 export function browserProfileRelativePath() {
