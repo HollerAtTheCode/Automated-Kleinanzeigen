@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Check, ExternalLink, ImagePlus, Loader2, Search, Send, Sparkles, Trash2 } from "lucide-react";
-import type { ComparableListing, ListingDraft, ProductAnalysis, SessionState } from "../shared/types.js";
+import type { ComparableListing, ListingDraft, PriceRecommendation, ProductAnalysis, SessionState } from "../shared/types.js";
 import "./styles.css";
 
 type Step = "upload" | "analysis" | "pricing" | "draft" | "publish";
@@ -42,9 +42,12 @@ function App() {
     model: "",
     condition: "unknown" as ProductAnalysis["condition"],
     category: "",
-    notes: ""
+    notes: "",
+    price: ""
   });
   const [comparables, setComparables] = useState<ComparableListing[]>([]);
+  const [priceRecommendation, setPriceRecommendation] = useState<PriceRecommendation | null>(null);
+  const [priceEdited, setPriceEdited] = useState(false);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState<ListingDraft | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -88,8 +91,10 @@ function App() {
         model: result.model ?? "",
         condition: result.condition,
         category: result.suggestedCategory && result.suggestedCategory !== "Sonstiges" ? result.suggestedCategory : "",
-        notes: result.saleNotes ?? ""
+        notes: result.saleNotes ?? "",
+        price: ""
       });
+      setPriceEdited(false);
       setStep("analysis");
     });
   };
@@ -161,6 +166,15 @@ function App() {
         setProductForm((current) => ({ ...current, notes: notesResult.saleNotes }));
         setAnalysis((current) => (current ? { ...current, saleNotes: notesResult.saleNotes } : current));
       }
+      const price = await api<PriceRecommendation>(`/api/session/${session.id}/price-recommendation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ excludedListingIds: [...excluded] })
+      });
+      setPriceRecommendation(price);
+      if (price.suggestedPrice) {
+        setProductForm((current) => ({ ...current, price: current.price || String(price.suggestedPrice) }));
+      }
       setStep("pricing");
     });
   };
@@ -171,7 +185,10 @@ function App() {
       const result = await api<ListingDraft>(`/api/session/${session.id}/draft`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ excludedListingIds: [...excluded] })
+        body: JSON.stringify({
+          excludedListingIds: [...excluded],
+          manualPrice: productForm.price.trim() ? Number(productForm.price) : undefined
+        })
       });
       setDraft(result);
       setStep("draft");
@@ -187,6 +204,29 @@ function App() {
   };
 
   const activeComparables = useMemo(() => comparables.filter((listing) => !excluded.has(listing.id)), [comparables, excluded]);
+
+  useEffect(() => {
+    if (!session || step !== "pricing" || comparables.length === 0) return;
+    let cancelled = false;
+    api<PriceRecommendation>(`/api/session/${session.id}/price-recommendation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ excludedListingIds: [...excluded] })
+    })
+      .then((price) => {
+        if (cancelled) return;
+        setPriceRecommendation(price);
+        if (!priceEdited && price.suggestedPrice) {
+          setProductForm((current) => ({ ...current, price: String(price.suggestedPrice) }));
+        }
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session, step, comparables, excluded, priceEdited]);
 
   return (
     <main>
@@ -307,6 +347,20 @@ function App() {
                   <input value={productForm.category} onChange={(event) => setProductForm({ ...productForm, category: event.target.value })} />
                 </label>
                 <label className="spanTwo">
+                  Preisvorstellung (€)
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputMode="numeric"
+                    value={productForm.price}
+                    onChange={(event) => {
+                      setPriceEdited(true);
+                      setProductForm({ ...productForm, price: event.target.value });
+                    }}
+                  />
+                </label>
+                <label className="spanTwo">
                   Hinweise oder Mängel
                   <textarea
                     className="compact"
@@ -330,6 +384,12 @@ function App() {
                 <h2>Vergleichsangebote</h2>
                 <p>{activeComparables.length} Angebote werden für den Preisvorschlag berücksichtigt</p>
               </div>
+              {priceRecommendation?.suggestedPrice && (
+                <div className="inlinePrice">
+                  <span>Preisvorstellung</span>
+                  <strong>{productForm.price || priceRecommendation.suggestedPrice} EUR</strong>
+                </div>
+              )}
               <button className="primary" disabled={!comparables.length || !!busy} onClick={generateDraft}>
                 <Check size={18} />
                 Anzeige vorbereiten

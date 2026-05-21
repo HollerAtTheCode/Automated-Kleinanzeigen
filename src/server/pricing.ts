@@ -46,8 +46,7 @@ export function recommendPrice(listings: ComparableListing[]): PriceRecommendati
   const scoreTotal = usable.reduce((sum, listing) => sum + Math.max(0.1, listing.score), 0);
   const weighted = usable.reduce((sum, listing) => sum + listing.price * Math.max(0.1, listing.score), 0) / scoreTotal;
   const targetBase = ((median ?? weighted) + weighted) / 2;
-  const markdown = usable.length < 3 ? 0.95 : 0.925;
-  const suggestedPrice = roundCommercial(targetBase * markdown);
+  const suggestedPrice = roundCommercial(targetBase);
   const usedListingIds = usable.map((listing) => listing.id);
   const outlierIds = priced.filter((listing) => !usedListingIds.includes(listing.id)).map((listing) => listing.id);
 
@@ -60,7 +59,7 @@ export function recommendPrice(listings: ComparableListing[]): PriceRecommendati
     excludedListingIds: [...explicitExcluded, ...outlierIds],
     rationale:
       usable.length < 3
-        ? "Wenige Vergleichspreise: Vorschlag konservativ knapp unter den verfügbaren Angeboten."
-        : "Ausreißer entfernt, Median und gewichtete Mitte kombiniert, danach ca. 5-10% darunter gerundet."
+        ? "Wenige Vergleichspreise: Median und gewichtete Mitte kombiniert, kaufmännisch gerundet."
+        : "Ausreißer entfernt, Median und gewichtete Mitte kombiniert, kaufmännisch gerundet."
   };
 }

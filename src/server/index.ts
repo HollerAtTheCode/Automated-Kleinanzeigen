@@ -162,6 +162,20 @@ app.post("/api/session/:id/sale-notes", async (req, res, next) => {
   }
 });
 
+app.post("/api/session/:id/price-recommendation", (req, res, next) => {
+  try {
+    const session = getSession(param(req.params.id));
+    const excludedIds = parseExcludedListingIds(req.body?.excludedListingIds);
+    const comparables: ComparableListing[] = session.comparables.map((listing) => ({
+      ...listing,
+      excluded: excludedIds.has(listing.id)
+    }));
+    res.json(recommendPrice(comparables));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/session/:id/draft", async (req, res, next) => {
   try {
     const session = getSession(param(req.params.id));
@@ -172,7 +186,16 @@ app.post("/api/session/:id/draft", async (req, res, next) => {
     }));
     setComparables(session.id, comparables);
     const price = recommendPrice(comparables);
-    const draft = await generateDraft(session, price);
+    const manualPrice = Number(req.body?.manualPrice);
+    const finalPrice =
+      Number.isFinite(manualPrice) && manualPrice > 0
+        ? {
+            ...price,
+            suggestedPrice: Math.round(manualPrice),
+            rationale: "Preis manuell angepasst."
+          }
+        : price;
+    const draft = await generateDraft(session, finalPrice);
     res.json(setDraft(session.id, draft).draft);
   } catch (error) {
     next(error);

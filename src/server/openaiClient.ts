@@ -3,7 +3,7 @@ import OpenAI, { APIError } from "openai";
 import type { ListingDraft, PriceRecommendation, ProductAnalysis } from "../shared/types.js";
 import { config, getOpenaiApiKey } from "./config.js";
 import type { StoredSessionState } from "./sessionStore.js";
-import { PRODUCT_ANALYSIS_TEXT_FORMAT, ProductAnalysisSchema, parseJsonObject } from "./validators.js";
+import { PRODUCT_ANALYSIS_TEXT_FORMAT, ProductAnalysisSchema } from "./validators.js";
 
 function fallbackAnalysis(): ProductAnalysis {
   return {
@@ -147,65 +147,29 @@ export async function generateSaleNotes(session: StoredSessionState): Promise<st
 
 export async function generateDraft(session: StoredSessionState, price: PriceRecommendation): Promise<ListingDraft> {
   const analysis = session.analysis ?? fallbackAnalysis();
-  const client = makeClient();
   const imageOrder = session.images.map((image) => image.id);
+  const titleParts = [analysis.brand, analysis.model, analysis.productType].filter(Boolean);
+  const itemName = [analysis.brand, analysis.model].filter(Boolean).join(" ").trim() || analysis.productType || "Artikel";
+  const title = titleParts.join(" ").replace(/\s+/g, " ").trim().slice(0, 80) || "Artikel zu verkaufen";
+  const baseDescription =
+    analysis.saleNotes?.trim() ||
+    `Ich verkaufe ${itemName}. Der Artikel ist gebraucht und befindet sich in dem angegebenen Zustand.`;
+  const priceLine = price.suggestedPrice ? `Preisvorstellung: ${price.suggestedPrice} € VB` : "";
+  const description = [
+    baseDescription,
+    `Der Artikel wurde privat genutzt und wird wegen Nichtgebrauch abgegeben.`,
+    "Privatverkauf, keine Garantie oder Rücknahme durch mich. Versand oder Abholung nach Absprache möglich.",
+    priceLine
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
-  if (!client) {
-    const parts = [analysis.brand, analysis.model, analysis.productType].filter(Boolean);
-    return {
-      title: parts.join(" ").slice(0, 80) || "Artikel zu verkaufen",
-      description: [
-        `Ich verkaufe ${parts.join(" ") || "diesen Artikel"}.`,
-        `Zustand: ${analysis.condition === "unknown" ? "siehe Fotos" : analysis.condition}.`,
-        "Privatverkauf, keine Garantie oder Rücknahme."
-      ].join("\n\n"),
-      categoryHint: analysis.suggestedCategory,
-      price,
-      imageOrder,
-      missingFacts: analysis.openQuestions
-    };
-  }
-
-  const response = await client.responses.create({
-    model: config.openaiModel,
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: JSON.stringify({
-              instruction:
-                "Erstelle eine Kleinanzeigen-Anzeige für Privatverkauf als JSON mit title, description, categoryHint, missingFacts. Maximal sachlich, keine nicht belegten Behauptungen, keine rechtlich heiklen Superlative.",
-              analysis,
-              saleNotes: analysis.saleNotes,
-              price,
-              comparables: session.comparables.slice(0, 12)
-            })
-          }
-        ]
-      }
-    ]
-  });
-
-  try {
-    const parsed = parseJsonObject(response.output_text) as Partial<ListingDraft>;
-    return {
-      title: String(parsed.title ?? `${analysis.brand ?? ""} ${analysis.model ?? ""} ${analysis.productType}`.trim()).slice(0, 80),
-      description: String(parsed.description ?? ""),
-      categoryHint: typeof parsed.categoryHint === "string" ? parsed.categoryHint : analysis.suggestedCategory,
-      price,
-      imageOrder,
-      missingFacts: Array.isArray(parsed.missingFacts) ? parsed.missingFacts.map(String) : analysis.openQuestions
-    };
-  } catch {
-    return {
-      title: `${analysis.brand ?? ""} ${analysis.model ?? ""} ${analysis.productType}`.trim().slice(0, 80),
-      description: "Beschreibung konnte nicht automatisch erstellt werden. Bitte prüfen und ergänzen.",
-      categoryHint: analysis.suggestedCategory,
-      price,
-      imageOrder,
-      missingFacts: analysis.openQuestions
-    };
-  }
+  return {
+    title,
+    description,
+    categoryHint: analysis.suggestedCategory,
+    price,
+    imageOrder,
+    missingFacts: analysis.openQuestions
+  };
 }

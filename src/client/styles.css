@@ -337,6 +337,21 @@ dt {
   align-items: center;
 }
 
+.inlinePrice {
+  display: grid;
+  gap: 2px;
+  min-width: 150px;
+}
+
+.inlinePrice span {
+  color: #586458;
+  font-size: 13px;
+}
+
+.inlinePrice strong {
+  font-size: 20px;
+}
+
 .listings {
   display: grid;
   gap: 10px;
