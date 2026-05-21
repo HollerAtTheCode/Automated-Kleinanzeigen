@@ -150,7 +150,7 @@ dd {
   border-style: dashed;
 }
 
-.dropzone input {
+.dropzone > input[type="file"] {
   position: absolute;
   opacity: 0;
   pointer-events: none;
