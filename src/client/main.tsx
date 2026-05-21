@@ -381,20 +381,6 @@ function App() {
                   Kategorie
                   <input value={productForm.category} onChange={(event) => setProductForm({ ...productForm, category: event.target.value })} />
                 </label>
-                <label className="spanTwo">
-                  Preisvorstellung (€)
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    inputMode="numeric"
-                    value={productForm.price}
-                    onChange={(event) => {
-                      setPriceEdited(true);
-                      setProductForm({ ...productForm, price: event.target.value });
-                    }}
-                  />
-                </label>
                 <label>
                   Übergabe
                   <select
