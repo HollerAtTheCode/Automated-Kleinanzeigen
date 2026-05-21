@@ -16,7 +16,7 @@ function listing(id: string, price: number | null, score = 0.8, excluded = false
 }
 
 describe("recommendPrice", () => {
-  it("filters outliers and rounds around the market midpoint", () => {
+  it("filters outliers and rounds below the market midpoint", () => {
     const result = recommendPrice([
       listing("a", 90, 0.9),
       listing("b", 100, 1),
@@ -27,7 +27,7 @@ describe("recommendPrice", () => {
 
     expect(result.sampleSize).toBe(4);
     expect(result.excludedListingIds).toContain("outlier");
-    expect(result.suggestedPrice).toBe(100);
+    expect(result.suggestedPrice).toBe(95);
   });
 
   it("returns no price when no valid prices exist", () => {
