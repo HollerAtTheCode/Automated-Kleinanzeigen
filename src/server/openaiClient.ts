@@ -11,7 +11,7 @@ function fallbackAnalysis(): ProductAnalysis {
     condition: "unknown",
     confidence: 0.2,
     detectedAttributes: {},
-    openQuestions: ["Was genau wird verkauft?", "Gibt es bekannte Maengel?", "Welches Zubehoer ist enthalten?"],
+    openQuestions: ["Was genau wird verkauft?", "Gibt es bekannte Mängel?", "Welches Zubehör ist enthalten?"],
     searchQueries: ["gebrauchter Artikel Kleinanzeigen"],
     suggestedCategory: "Sonstiges"
   };
@@ -43,7 +43,7 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
           {
             type: "input_text",
             text:
-              "Analysiere diese Produktbilder fuer einen privaten Kleinanzeigen-Verkauf. Antworte ausschliesslich als JSON mit productType, brand, model, condition, confidence, detectedAttributes, openQuestions, searchQueries, suggestedCategory."
+              "Analysiere diese Produktbilder für einen privaten Kleinanzeigen-Verkauf. Antworte ausschließlich als JSON mit productType, brand, model, condition, confidence, detectedAttributes, openQuestions, searchQueries, suggestedCategory."
           },
           ...imageInputs
         ]
@@ -68,7 +68,7 @@ export async function generateDraft(session: StoredSessionState, price: PriceRec
       description: [
         `Ich verkaufe ${parts.join(" ") || "diesen Artikel"}.`,
         `Zustand: ${analysis.condition === "unknown" ? "siehe Fotos" : analysis.condition}.`,
-        "Privatverkauf, keine Garantie oder Ruecknahme."
+        "Privatverkauf, keine Garantie oder Rücknahme."
       ].join("\n\n"),
       categoryHint: analysis.suggestedCategory,
       price,
@@ -87,7 +87,7 @@ export async function generateDraft(session: StoredSessionState, price: PriceRec
             type: "input_text",
             text: JSON.stringify({
               instruction:
-                "Erstelle einen Kleinanzeigen-Entwurf fuer Privatverkauf als JSON mit title, description, categoryHint, missingFacts. Maximal sachlich, keine nicht belegten Behauptungen, keine rechtlich heiklen Superlative.",
+                "Erstelle eine Kleinanzeigen-Anzeige für Privatverkauf als JSON mit title, description, categoryHint, missingFacts. Maximal sachlich, keine nicht belegten Behauptungen, keine rechtlich heiklen Superlative.",
               analysis,
               price,
               comparables: session.comparables.slice(0, 12)
@@ -111,7 +111,7 @@ export async function generateDraft(session: StoredSessionState, price: PriceRec
   } catch {
     return {
       title: `${analysis.brand ?? ""} ${analysis.model ?? ""} ${analysis.productType}`.trim().slice(0, 80),
-      description: "Beschreibung konnte nicht automatisch erstellt werden. Bitte pruefen und ergaenzen.",
+      description: "Beschreibung konnte nicht automatisch erstellt werden. Bitte prüfen und ergänzen.",
       categoryHint: analysis.suggestedCategory,
       price,
       imageOrder,

@@ -9,7 +9,7 @@ import { recommendPrice } from "./pricing.js";
 import { searchKleinanzeigen } from "./kleinanzeigen.js";
 import { startPublishAssist } from "./publishAssist.js";
 import { acceptsDeclaredImageType, assertValidUploadedImages, safeImageExtension } from "./uploads.js";
-import { parseExcludedListingIds, parseSearchQueries } from "./validators.js";
+import { ProductAnalysisSchema, parseExcludedListingIds, parseSearchQueries } from "./validators.js";
 import {
   addImages,
   createSession,
@@ -98,6 +98,24 @@ app.post("/api/session/:id/analyze", async (req, res, next) => {
   }
 });
 
+app.post("/api/session/:id/analysis", (req, res, next) => {
+  try {
+    const session = getSession(param(req.params.id));
+    const current = session.analysis ?? {};
+    const result = ProductAnalysisSchema.parse({
+      ...current,
+      ...req.body,
+      detectedAttributes: {
+        ...(session.analysis?.detectedAttributes ?? {}),
+        ...(typeof req.body?.detectedAttributes === "object" && req.body.detectedAttributes ? req.body.detectedAttributes : {})
+      }
+    });
+    res.json(setAnalysis(session.id, result).analysis);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/session/:id/price-search", async (req, res, next) => {
   try {
     const session = getSession(param(req.params.id));
@@ -130,7 +148,7 @@ app.post("/api/session/:id/publish-assist", async (req, res, next) => {
   try {
     const session = getSession(param(req.params.id));
     if (!session.draft) {
-      res.status(400).json({ error: "Draft must be created before publish assist." });
+      res.status(400).json({ error: "Die Anzeige muss zuerst vorbereitet werden." });
       return;
     }
     const state = await startPublishAssist(session.draft);
@@ -166,5 +184,5 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 app.listen(config.port, config.host, () => {
-  console.log(`Kleinanzeigen draft assistant listening on http://${config.host}:${config.port}`);
+  console.log(`Automated Kleinanzeigen läuft auf http://${config.host}:${config.port}`);
 });

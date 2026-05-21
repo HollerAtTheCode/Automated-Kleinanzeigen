@@ -1,18 +1,18 @@
 # Automated Kleinanzeigen
 
-Automated Kleinanzeigen is a local-first assistant for preparing private Kleinanzeigen listings. It helps turn product photos into an editable listing draft, researches active Kleinanzeigen offer prices, and can open a separate browser profile to prefill a draft for manual review.
+Automated Kleinanzeigen is a local-first assistant for preparing private Kleinanzeigen listings. It helps turn product photos into editable listing content, researches active Kleinanzeigen offer prices, and can open a separate browser profile to prefill the listing for manual review.
 
 The app does not blind-post listings. The final login, category selection, image upload check, content review, and publishing click stay with the user.
 
 ## Features
 
 - Drag-and-drop product image upload.
-- Product recognition and draft data extraction through the OpenAI Responses API.
+- Product recognition and listing data extraction through the OpenAI Responses API.
 - Active Kleinanzeigen comparison search through Playwright.
 - Robust price recommendation with manual outlier/exclusion controls.
 - Editable listing title, description, category hint, price rationale, and missing-facts checklist.
 - Assisted Kleinanzeigen browser flow with a dedicated persistent local profile.
-- Session-only handling for uploaded images, analysis results, comparison sources, and drafts.
+- Session-only handling for uploaded images, analysis results, comparison sources, and listing content.
 
 ## Safety Model
 
@@ -32,7 +32,7 @@ Kleinanzeigen is a third-party service. This project is not affiliated with, end
 
 - Node.js 22 or newer
 - npm
-- An OpenAI API key for live image analysis and draft generation
+- An OpenAI API key for live image analysis and listing text generation
 - Playwright browser binaries for UI tests and browser-assisted flows
 
 ## Setup
@@ -54,7 +54,7 @@ Open `http://127.0.0.1:5173`.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | empty | API key for OpenAI image analysis and draft generation. |
+| `OPENAI_API_KEY` | empty | API key for OpenAI image analysis and listing text generation. |
 | `OPENAI_MODEL` | `gpt-5.1` | Model used with the Responses API. |
 | `PORT` | `5173` | Local server port. |
 | `HOST` | `127.0.0.1` | Local bind address. Keep this loopback-only unless you know the risk. |

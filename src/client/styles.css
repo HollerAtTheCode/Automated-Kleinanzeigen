@@ -16,7 +16,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -242,6 +243,28 @@ dt {
   padding-left: 18px;
 }
 
+.formPanel label {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.formPanel input,
+.formPanel select,
+.formPanel textarea {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #cfd8c8;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: #172018;
+}
+
+.formPanel textarea.compact {
+  min-height: 96px;
+}
+
 .panelHeader {
   display: flex;
   justify-content: space-between;
@@ -252,6 +275,15 @@ dt {
 .listings {
   display: grid;
   gap: 10px;
+}
+
+.emptyState {
+  border: 1px dashed #cfd8c8;
+  border-radius: 6px;
+  padding: 22px;
+  display: grid;
+  gap: 8px;
+  text-align: center;
 }
 
 .listing {

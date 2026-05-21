@@ -22,6 +22,10 @@ function parsePrice(text: string): number | null {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+function searchPath(query: string) {
+  return encodeURIComponent(query.trim().replace(/\s+/g, "-"));
+}
+
 export async function searchKleinanzeigen(queries: string[], analysis?: ProductAnalysis): Promise<ComparableListing[]> {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ locale: "de-DE" });
@@ -29,20 +33,26 @@ export async function searchKleinanzeigen(queries: string[], analysis?: ProductA
 
   try {
     for (const query of queries.slice(0, 4)) {
-      const url = `https://www.kleinanzeigen.de/s-${encodeURIComponent(query)}/k0`;
+      const url = `https://www.kleinanzeigen.de/s-${searchPath(query)}/k0`;
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25_000 });
       await page.waitForTimeout(1200);
 
-      const items = await page.locator("article.aditem, li.ad-listitem, [data-testid*='ad']").evaluateAll((nodes) =>
-        nodes.slice(0, 12).map((node) => {
+      const items = await page.locator("article.aditem, li.ad-listitem, [data-testid*='ad'], a[href*='/s-anzeige/']").evaluateAll((nodes) =>
+        nodes.slice(0, 30).map((node) => {
           const element = node as HTMLElement;
-          const link = element.querySelector<HTMLAnchorElement>("a[href]");
+          const card = element.closest("article, li, [data-testid*='ad']") as HTMLElement | null;
+          const source = card ?? element;
+          const link = source.matches("a[href]") ? (source as HTMLAnchorElement) : source.querySelector<HTMLAnchorElement>("a[href]");
           const title =
-            element.querySelector<HTMLElement>(".ellipsis, .text-module-begin, h2, h3")?.innerText?.trim() ??
+            source.querySelector<HTMLElement>(".ellipsis, .text-module-begin, h2, h3, [data-testid*='title']")?.innerText?.trim() ??
+            link?.getAttribute("title")?.trim() ??
             link?.innerText?.trim() ??
             "";
-          const price = element.querySelector<HTMLElement>(".aditem-main--middle--price-shipping--price, [class*='price']")?.innerText?.trim() ?? "";
-          const location = element.querySelector<HTMLElement>(".aditem-main--top--left, [class*='location']")?.innerText?.trim() ?? "";
+          const price =
+            source.querySelector<HTMLElement>(".aditem-main--middle--price-shipping--price, [class*='price'], [data-testid*='price']")?.innerText?.trim() ??
+            source.innerText;
+          const location =
+            source.querySelector<HTMLElement>(".aditem-main--top--left, [class*='location'], [data-testid*='location']")?.innerText?.trim() ?? "";
           return { title, price, location, href: link?.href ?? "" };
         })
       );

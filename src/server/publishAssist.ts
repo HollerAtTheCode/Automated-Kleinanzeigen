@@ -34,7 +34,7 @@ export async function startPublishAssist(draft: ListingDraft): Promise<PublishAs
 
     return {
       status: "ready_for_user",
-      message: "Der Kleinanzeigen-Browser ist geoeffnet. Bitte Login, Kategorie, Bilder, Details und Veroeffentlichung manuell pruefen.",
+      message: "Der Kleinanzeigen-Browser ist geöffnet. Bitte Login, Kategorie, Bilder, Details und Veröffentlichung manuell prüfen.",
       url: page.url()
     };
   } catch (error) {

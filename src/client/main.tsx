@@ -6,6 +6,15 @@ import "./styles.css";
 
 type Step = "upload" | "analysis" | "pricing" | "draft" | "publish";
 
+const conditionLabels: Record<ProductAnalysis["condition"], string> = {
+  new: "Neu",
+  like_new: "Wie neu",
+  good: "Gut",
+  fair: "Gebraucht",
+  defective: "Defekt",
+  unknown: "Bitte auswählen"
+};
+
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   if (!response.ok) {
@@ -20,6 +29,14 @@ function App() {
   const [step, setStep] = useState<Step>("upload");
   const [files, setFiles] = useState<File[]>([]);
   const [analysis, setAnalysis] = useState<ProductAnalysis | null>(null);
+  const [productForm, setProductForm] = useState({
+    productType: "",
+    brand: "",
+    model: "",
+    condition: "unknown" as ProductAnalysis["condition"],
+    category: "",
+    notes: ""
+  });
   const [comparables, setComparables] = useState<ComparableListing[]>([]);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState<ListingDraft | null>(null);
@@ -57,17 +74,62 @@ function App() {
       setSession(uploaded);
       const result = await api<ProductAnalysis>(`/api/session/${session.id}/analyze`, { method: "POST" });
       setAnalysis(result);
+      setProductForm({
+        productType: result.productType === "Unbekannter Artikel" ? "" : result.productType,
+        brand: result.brand ?? "",
+        model: result.model ?? "",
+        condition: result.condition,
+        category: result.suggestedCategory && result.suggestedCategory !== "Sonstiges" ? result.suggestedCategory : "",
+        notes: ""
+      });
       setStep("analysis");
+    });
+  };
+
+  const buildSearchQueries = (data = productForm) => {
+    const primary = [data.brand, data.model, data.productType].filter(Boolean).join(" ").trim();
+    const fallback = data.productType.trim();
+    return [...new Set([primary, fallback, ...(analysis?.searchQueries ?? [])].filter((query) => query.length > 2))].slice(0, 4);
+  };
+
+  const saveProductDetails = async () => {
+    if (!session || !analysis) return null;
+    const productType = productForm.productType.trim();
+    const category = productForm.category.trim();
+    if (!productType || productForm.condition === "unknown" || !category) {
+      setError("Bitte fülle Produkt, Zustand und Kategorie aus.");
+      return null;
+    }
+
+    return run("Angaben werden gespeichert", async () => {
+      const updated = await api<ProductAnalysis>(`/api/session/${session.id}/analysis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...analysis,
+          productType,
+          brand: productForm.brand.trim() || undefined,
+          model: productForm.model.trim() || undefined,
+          condition: productForm.condition,
+          suggestedCategory: category,
+          openQuestions: productForm.notes.trim() ? [productForm.notes.trim()] : [],
+          searchQueries: buildSearchQueries()
+        })
+      });
+      setAnalysis(updated);
+      return updated;
     });
   };
 
   const searchPrices = async () => {
     if (!session || !analysis) return;
-    await run("Vergleichsanzeigen werden gesucht", async () => {
+    const updatedAnalysis = await saveProductDetails();
+    if (!updatedAnalysis) return;
+    await run("Vergleichsangebote werden gesucht", async () => {
       const result = await api<ComparableListing[]>(`/api/session/${session.id}/price-search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ queries: analysis.searchQueries })
+        body: JSON.stringify({ queries: updatedAnalysis.searchQueries })
       });
       setComparables(result);
       setStep("pricing");
@@ -76,7 +138,7 @@ function App() {
 
   const generateDraft = async () => {
     if (!session) return;
-    await run("Entwurf wird erstellt", async () => {
+    await run("Anzeige wird vorbereitet", async () => {
       const result = await api<ListingDraft>(`/api/session/${session.id}/draft`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -89,7 +151,7 @@ function App() {
 
   const publishAssist = async () => {
     if (!session) return;
-    await run("Browser wird geoeffnet", async () => {
+    await run("Browser wird geöffnet", async () => {
       await api(`/api/session/${session.id}/publish-assist`, { method: "POST" });
       setStep("publish");
     });
@@ -102,14 +164,14 @@ function App() {
       <aside className="sidebar">
         <div className="brand">
           <Sparkles size={20} />
-          <span>Entwurfsassistent</span>
+          <span>Verkaufsassistent</span>
         </div>
         <nav>
           {[
             ["upload", "Bilder"],
             ["analysis", "Produkt"],
-            ["pricing", "Preise"],
-            ["draft", "Entwurf"],
+            ["pricing", "Marktpreise"],
+            ["draft", "Anzeige"],
             ["publish", "Assist"]
           ].map(([id, label]) => (
             <button key={id} className={step === id ? "active" : ""} onClick={() => setStep(id as Step)}>
@@ -122,8 +184,8 @@ function App() {
       <section className="workspace">
         <header>
           <div>
-            <h1>Lokaler Kleinanzeigen-Entwurf</h1>
-            <p>Session-only Verarbeitung fuer Bilder, Analyse, Preise und Entwurf.</p>
+            <h1>Kleinanzeigen Verkaufsassistent</h1>
+            <p>Fotos auswerten, Marktpreise vergleichen und die Anzeige vorbereiten.</p>
           </div>
           {busy && (
             <span className="status">
@@ -146,7 +208,7 @@ function App() {
           >
             <ImagePlus size={32} />
             <input id="images" type="file" accept="image/*" multiple onChange={(event) => event.target.files && selectFiles(event.target.files)} />
-            <label htmlFor="images">Produktbilder auswaehlen</label>
+            <label htmlFor="images">Produktbilder auswählen</label>
             <div className="thumbs">
               {files.map((file, index) => (
                 <figure key={`${file.name}-${index}`}>
@@ -163,32 +225,70 @@ function App() {
 
         {step === "analysis" && analysis && (
           <section className="grid two">
+            <form className="panel formPanel" onSubmit={(event) => event.preventDefault()}>
+              <h2>Produktangaben</h2>
+              <label>
+                Produkt
+                <input value={productForm.productType} onChange={(event) => setProductForm({ ...productForm, productType: event.target.value })} />
+              </label>
+              <label>
+                Marke
+                <input value={productForm.brand} onChange={(event) => setProductForm({ ...productForm, brand: event.target.value })} />
+              </label>
+              <label>
+                Modell
+                <input value={productForm.model} onChange={(event) => setProductForm({ ...productForm, model: event.target.value })} />
+              </label>
+              <label>
+                Zustand
+                <select
+                  value={productForm.condition}
+                  onChange={(event) => setProductForm({ ...productForm, condition: event.target.value as ProductAnalysis["condition"] })}
+                >
+                  {Object.entries(conditionLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Kategorie
+                <input value={productForm.category} onChange={(event) => setProductForm({ ...productForm, category: event.target.value })} />
+              </label>
+              <label>
+                Hinweise oder Mängel
+                <textarea
+                  className="compact"
+                  value={productForm.notes}
+                  onChange={(event) => setProductForm({ ...productForm, notes: event.target.value })}
+                />
+              </label>
+            </form>
             <div className="panel">
-              <h2>{[analysis.brand, analysis.model, analysis.productType].filter(Boolean).join(" ")}</h2>
-              <dl>
-                <dt>Zustand</dt>
-                <dd>{analysis.condition}</dd>
-                <dt>Sicherheit</dt>
-                <dd>{Math.round(analysis.confidence * 100)}%</dd>
-                <dt>Kategorie</dt>
-                <dd>{analysis.suggestedCategory ?? "Offen"}</dd>
-              </dl>
-              <div className="chips">
-                {Object.entries(analysis.detectedAttributes).map(([key, value]) => (
-                  <span key={key}>{key}: {value}</span>
-                ))}
+              <h2>Gefundene Hinweise</h2>
+              {Object.keys(analysis.detectedAttributes).length > 0 ? (
+                <div className="chips">
+                  {Object.entries(analysis.detectedAttributes).map(([key, value]) => (
+                    <span key={key}>
+                      {key}: {value}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p>Keine sicheren Zusatzangaben erkannt.</p>
+              )}
+              <div>
+                <h3>Suchbegriffe</h3>
+                <ul className="plain">
+                  {buildSearchQueries().map((query) => (
+                    <li key={query}>{query}</li>
+                  ))}
+                </ul>
               </div>
-            </div>
-            <div className="panel">
-              <h2>Suchbegriffe</h2>
-              <ul className="plain">
-                {analysis.searchQueries.map((query) => (
-                  <li key={query}>{query}</li>
-                ))}
-              </ul>
               <button className="primary" disabled={!!busy} onClick={searchPrices}>
                 <Search size={18} />
-                Preise suchen
+                Vergleichsangebote finden
               </button>
             </div>
           </section>
@@ -198,20 +298,26 @@ function App() {
           <section className="panel">
             <div className="panelHeader">
               <div>
-                <h2>Vergleichsanzeigen</h2>
-                <p>{activeComparables.length} aktive Treffer in der Preislogik</p>
+                <h2>Vergleichsangebote</h2>
+                <p>{activeComparables.length} Angebote werden für den Preisvorschlag berücksichtigt</p>
               </div>
               <button className="primary" disabled={!comparables.length || !!busy} onClick={generateDraft}>
                 <Check size={18} />
-                Entwurf erzeugen
+                Anzeige vorbereiten
               </button>
             </div>
             <div className="listings">
+              {comparables.length === 0 && (
+                <div className="emptyState">
+                  <h3>Keine Vergleichsangebote gefunden</h3>
+                  <p>Prüfe Produkt, Marke und Modell oder versuche allgemeinere Suchbegriffe.</p>
+                </div>
+              )}
               {comparables.map((listing) => (
                 <article key={listing.id} className={excluded.has(listing.id) ? "listing excluded" : "listing"}>
                   <button
                     className="icon"
-                    title={excluded.has(listing.id) ? "Wieder einbeziehen" : "Ausschliessen"}
+                    title={excluded.has(listing.id) ? "Wieder einbeziehen" : "Ausschließen"}
                     onClick={() =>
                       setExcluded((current) => {
                         const next = new Set(current);
@@ -227,7 +333,7 @@ function App() {
                     <p>{listing.location || "Ort unbekannt"} · Score {listing.score.toFixed(2)}</p>
                   </div>
                   <strong>{listing.price ? `${listing.price} EUR` : "VB"}</strong>
-                  <a href={listing.url} target="_blank" rel="noreferrer" title="Quelle oeffnen">
+                  <a href={listing.url} target="_blank" rel="noreferrer" title="Quelle öffnen">
                     <ExternalLink size={16} />
                   </a>
                 </article>
@@ -243,7 +349,7 @@ function App() {
               <textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} />
               <button className="primary" disabled={!!busy} onClick={publishAssist}>
                 <Send size={18} />
-                Nach Pruefung befuellen
+                Nach Prüfung befüllen
               </button>
             </div>
             <div className="panel">
@@ -267,7 +373,7 @@ function App() {
           <section className="panel done">
             <Check size={40} />
             <h2>Browserflow gestartet</h2>
-            <p>Der separate Kleinanzeigen-Browser nutzt ein persistentes lokales Profil. Die finale Veroeffentlichung bleibt manuell.</p>
+            <p>Der separate Kleinanzeigen-Browser nutzt ein persistentes lokales Profil. Die finale Veröffentlichung bleibt manuell.</p>
           </section>
         )}
       </section>
