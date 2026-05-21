@@ -201,27 +201,74 @@ async function selectCategory(page: Page, categoryHint?: string) {
   return setCategoryFallback(page, selected);
 }
 
-const conditionLabels: Record<ListingDraft["condition"], string> = {
-  new: "Neu",
-  like_new: "Wie neu",
-  good: "Gut",
-  fair: "Gebraucht",
-  defective: "Defekt",
-  unknown: ""
+const conditionLabels: Record<ListingDraft["condition"], string[]> = {
+  new: ["Neu"],
+  like_new: ["Wie neu", "Neuwertig"],
+  good: ["Gut"],
+  fair: ["Gebraucht", "Akzeptabel"],
+  defective: ["Defekt"],
+  unknown: []
 };
 
 async function selectCondition(page: Page, condition: ListingDraft["condition"]) {
-  const targetLabel = conditionLabels[condition];
-  if (!targetLabel) return false;
+  const targetLabels = conditionLabels[condition];
+  if (targetLabels.length === 0) return false;
 
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
-    if (await selectNativeCondition(page, targetLabel)) return true;
-    if (await selectCustomCondition(page, targetLabel)) return true;
+    for (const targetLabel of targetLabels) {
+      if (await selectDialogCondition(page, targetLabel)) return true;
+      if (await selectNativeCondition(page, targetLabel)) return true;
+      if (await selectCustomCondition(page, targetLabel)) return true;
+    }
     await page.waitForTimeout(500);
   }
 
   return false;
+}
+
+async function selectDialogCondition(page: Page, targetLabel: string) {
+  const opener = page.locator("button[aria-haspopup='dialog']").filter({ hasText: "Zustand auswählen" }).first();
+  if ((await opener.count()) === 0 || !(await opener.isVisible().catch(() => false))) return false;
+  if (await isDialogConditionSelected(opener, targetLabel)) return true;
+
+  await opener.click();
+  await page.locator("[role='dialog']").last().waitFor({ state: "visible", timeout: 5_000 }).catch(() => undefined);
+  await page.waitForTimeout(250);
+
+  if (!(await clickDialogConditionOption(page, targetLabel))) {
+    await page.keyboard.press("Escape").catch(() => undefined);
+    return false;
+  }
+
+  await page.waitForTimeout(350);
+  return isDialogConditionSelected(opener, targetLabel);
+}
+
+async function clickDialogConditionOption(page: Page, targetLabel: string) {
+  const exactText = new RegExp(`^\\s*${escapeRegex(targetLabel)}\\s*$`, "i");
+  const dialog = page.locator("[role='dialog']").last();
+  const locators = [
+    dialog.getByRole("button", { name: targetLabel, exact: true }).first(),
+    dialog.locator("button").filter({ hasText: exactText }).first(),
+    dialog.locator("label").filter({ hasText: exactText }).first(),
+    dialog.locator("[role='option']").filter({ hasText: exactText }).first(),
+    dialog.locator("[role='menuitem']").filter({ hasText: exactText }).first(),
+    dialog.getByText(targetLabel, { exact: true }).first()
+  ];
+
+  for (const locator of locators) {
+    if ((await locator.count()) === 0) continue;
+    if (!(await locator.isVisible().catch(() => false))) continue;
+    await locator.click();
+    return true;
+  }
+  return false;
+}
+
+async function isDialogConditionSelected(opener: ReturnType<Page["locator"]>, targetLabel: string) {
+  const text = await opener.innerText().catch(() => "");
+  return text.toLowerCase().includes(targetLabel.toLowerCase()) && !text.toLowerCase().includes("bitte wählen");
 }
 
 async function selectNativeCondition(page: Page, targetLabel: string) {
@@ -281,6 +328,10 @@ async function clickConditionOption(page: Page, targetLabel: string) {
     return true;
   }
   return false;
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function readCategoryOptions(page: Page) {
