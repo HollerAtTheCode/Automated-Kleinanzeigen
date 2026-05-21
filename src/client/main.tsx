@@ -213,7 +213,9 @@ function App() {
   };
 
   const generateDraft = async () => {
-    if (!session) return;
+    if (!session || !analysis) return;
+    const updatedAnalysis = await saveProductDetails();
+    if (!updatedAnalysis) return;
     await run("Anzeige wird vorbereitet", async () => {
       const result = await api<ListingDraft>(`/api/session/${session.id}/draft`, {
         method: "POST",
@@ -415,7 +417,7 @@ function App() {
                   </select>
                 </label>
                 <label className="spanTwo">
-                  Hinweise oder Mängel
+                  Anzeigenbeschreibung
                   <textarea
                     className="compact"
                     value={productForm.notes}
@@ -526,7 +528,6 @@ function App() {
                 <dt>Stichprobe</dt>
                 <dd>{draft.price.sampleSize}</dd>
               </dl>
-              {draft.missingFacts.length > 0 && <p className="note">{draft.missingFacts.join(" · ")}</p>}
             </div>
           </section>
         )}

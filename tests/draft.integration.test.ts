@@ -18,7 +18,8 @@ describe("draft integration without external services", () => {
         detectedAttributes: { farbe: "schwarz" },
         openQuestions: ["Ist die Originalverpackung vorhanden?"],
         searchQueries: ["Comandante C40 schwarz"],
-        suggestedCategory: "Haushalt"
+        suggestedCategory: "Haushalt",
+        saleNotes: "Ich verkaufe meine Comandante C40. Sie ist gepflegt und funktioniert einwandfrei."
       },
       comparables: [
         { id: "a", source: "kleinanzeigen", title: "Comandante C40", price: 180, url: "https://example.test/a", score: 1 },
@@ -29,7 +30,9 @@ describe("draft integration without external services", () => {
     const draft = await generateDraft(session, recommendPrice(session.comparables));
 
     expect(draft.title).toContain("Comandante");
+    expect(draft.description).toContain("Ich verkaufe meine Comandante C40. Sie ist gepflegt und funktioniert einwandfrei.");
     expect(draft.description).toMatch(/Privatverkauf/);
+    expect(draft.description).toMatch(/Preisvorstellung: 180 € VB/);
     expect(draft.condition).toBe("good");
     expect(draft.price.suggestedPrice).toBe(180);
     expect(draft.imageOrder).toEqual(["img1"]);
