@@ -201,23 +201,23 @@ async function selectCategory(page: Page, categoryHint?: string) {
   return setCategoryFallback(page, selected);
 }
 
-const conditionLabels: Record<ListingDraft["condition"], string[]> = {
-  new: ["Neu"],
-  like_new: ["Wie neu", "Neuwertig"],
-  good: ["Gut"],
-  fair: ["Gebraucht", "Akzeptabel"],
-  defective: ["Defekt"],
-  unknown: []
+const conditionOptions: Record<ListingDraft["condition"], { value: string; labels: string[] }> = {
+  new: { value: "new", labels: ["Neu"] },
+  like_new: { value: "like_new", labels: ["Sehr Gut", "Wie neu", "Neuwertig"] },
+  good: { value: "ok", labels: ["Gut"] },
+  fair: { value: "alright", labels: ["In Ordnung", "Gebraucht", "Akzeptabel"] },
+  defective: { value: "defect", labels: ["Defekt"] },
+  unknown: { value: "", labels: [] }
 };
 
 async function selectCondition(page: Page, condition: ListingDraft["condition"]) {
-  const targetLabels = conditionLabels[condition];
-  if (targetLabels.length === 0) return false;
+  const option = conditionOptions[condition];
+  if (!option.value || option.labels.length === 0) return false;
 
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
-    for (const targetLabel of targetLabels) {
-      if (await selectDialogCondition(page, targetLabel)) return true;
+    if (await selectDialogCondition(page, option)) return true;
+    for (const targetLabel of option.labels) {
       if (await selectNativeCondition(page, targetLabel)) return true;
       if (await selectCustomCondition(page, targetLabel)) return true;
     }
@@ -227,31 +227,51 @@ async function selectCondition(page: Page, condition: ListingDraft["condition"])
   return false;
 }
 
-async function selectDialogCondition(page: Page, targetLabel: string) {
+async function selectDialogCondition(page: Page, option: { value: string; labels: string[] }) {
   const opener = page.locator("button[aria-haspopup='dialog']").filter({ hasText: "Zustand auswählen" }).first();
   if ((await opener.count()) === 0 || !(await opener.isVisible().catch(() => false))) return false;
-  if (await isDialogConditionSelected(opener, targetLabel)) return true;
+  if (await isDialogConditionSelected(opener, option.labels)) return true;
 
   await opener.click();
   await page.locator("[role='dialog']").last().waitFor({ state: "visible", timeout: 5_000 }).catch(() => undefined);
   await page.waitForTimeout(250);
 
-  if (!(await clickDialogConditionOption(page, targetLabel))) {
+  if (!(await chooseDialogConditionOption(page, option))) {
+    await page.keyboard.press("Escape").catch(() => undefined);
+    return false;
+  }
+
+  if (!(await confirmDialogCondition(page))) {
     await page.keyboard.press("Escape").catch(() => undefined);
     return false;
   }
 
   await page.waitForTimeout(350);
-  return isDialogConditionSelected(opener, targetLabel);
+  return isDialogConditionSelected(opener, option.labels);
 }
 
-async function clickDialogConditionOption(page: Page, targetLabel: string) {
-  const exactText = new RegExp(`^\\s*${escapeRegex(targetLabel)}\\s*$`, "i");
+async function chooseDialogConditionOption(page: Page, option: { value: string; labels: string[] }) {
   const dialog = page.locator("[role='dialog']").last();
+  const valueInput = dialog.locator(`input[type='radio'][value='${option.value}']`).first();
+  if ((await valueInput.count()) > 0) {
+    await valueInput.click({ force: true });
+    await page.waitForTimeout(200);
+    if (await valueInput.evaluate((input) => (input as HTMLInputElement).checked).catch(() => false)) return true;
+  }
+
+  for (const targetLabel of option.labels) {
+    if (await clickDialogConditionLabel(page, dialog, targetLabel)) return true;
+  }
+
+  return false;
+}
+
+async function clickDialogConditionLabel(page: Page, dialog: ReturnType<Page["locator"]>, targetLabel: string) {
+  const exactText = new RegExp(`^\\s*${escapeRegex(targetLabel)}\\s*$`, "i");
   const locators = [
+    dialog.locator("label").filter({ hasText: exactText }).first(),
     dialog.getByRole("button", { name: targetLabel, exact: true }).first(),
     dialog.locator("button").filter({ hasText: exactText }).first(),
-    dialog.locator("label").filter({ hasText: exactText }).first(),
     dialog.locator("[role='option']").filter({ hasText: exactText }).first(),
     dialog.locator("[role='menuitem']").filter({ hasText: exactText }).first(),
     dialog.getByText(targetLabel, { exact: true }).first()
@@ -261,14 +281,25 @@ async function clickDialogConditionOption(page: Page, targetLabel: string) {
     if ((await locator.count()) === 0) continue;
     if (!(await locator.isVisible().catch(() => false))) continue;
     await locator.click();
+    await page.waitForTimeout(200);
     return true;
   }
   return false;
 }
 
-async function isDialogConditionSelected(opener: ReturnType<Page["locator"]>, targetLabel: string) {
+async function confirmDialogCondition(page: Page) {
+  const dialog = page.locator("[role='dialog']").last();
+  const confirm = dialog.getByRole("button", { name: "Bestätigen", exact: true }).first();
+  if ((await confirm.count()) === 0 || !(await confirm.isVisible().catch(() => false))) return false;
+  await confirm.click();
+  await dialog.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => undefined);
+  return true;
+}
+
+async function isDialogConditionSelected(opener: ReturnType<Page["locator"]>, targetLabels: string[]) {
   const text = await opener.innerText().catch(() => "");
-  return text.toLowerCase().includes(targetLabel.toLowerCase()) && !text.toLowerCase().includes("bitte wählen");
+  const normalized = text.toLowerCase();
+  return targetLabels.some((label) => normalized.includes(label.toLowerCase())) && !normalized.includes("bitte wählen");
 }
 
 async function selectNativeCondition(page: Page, targetLabel: string) {
