@@ -26,13 +26,28 @@ function searchPath(query: string) {
   return encodeURIComponent(query.trim().replace(/\s+/g, "-"));
 }
 
+function fallbackQueries(analysis?: ProductAnalysis) {
+  if (!analysis) return [];
+  const brandModel = [analysis.brand, analysis.model].filter(Boolean).join(" ").trim();
+  return [
+    brandModel,
+    analysis.model,
+    [analysis.brand, analysis.productType].filter(Boolean).join(" ").trim(),
+    analysis.productType
+  ].filter((query): query is string => Boolean(query && query.length > 2));
+}
+
+function normalizeQueries(queries: string[], analysis?: ProductAnalysis) {
+  return [...new Set([...queries, ...fallbackQueries(analysis)].map((query) => query.trim()).filter((query) => query.length > 2))].slice(0, 6);
+}
+
 export async function searchKleinanzeigen(queries: string[], analysis?: ProductAnalysis): Promise<ComparableListing[]> {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ locale: "de-DE" });
   const listings = new Map<string, ComparableListing>();
 
   try {
-    for (const query of queries.slice(0, 4)) {
+    for (const query of normalizeQueries(queries, analysis)) {
       const url = `https://www.kleinanzeigen.de/s-${searchPath(query)}/k0`;
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25_000 });
       await page.waitForTimeout(1200);

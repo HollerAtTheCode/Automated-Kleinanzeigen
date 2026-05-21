@@ -111,10 +111,27 @@ function App() {
     });
   };
 
+  const canOpenStep = (target: Step) => {
+    if (target === "upload") return true;
+    if (target === "analysis") return Boolean(analysis);
+    if (target === "pricing") return Boolean(analysis);
+    if (target === "draft") return Boolean(draft);
+    return Boolean(draft);
+  };
+
+  const openStep = (target: Step) => {
+    if (canOpenStep(target)) {
+      setStep(target);
+      return;
+    }
+    setError("Bitte schließe zuerst den vorherigen Schritt ab.");
+  };
+
   const buildSearchQueries = (data = productForm) => {
     const primary = [data.brand, data.model, data.productType].filter(Boolean).join(" ").trim();
+    const brandModel = [data.brand, data.model].filter(Boolean).join(" ").trim();
     const fallback = data.productType.trim();
-    return [...new Set([primary, fallback, ...(analysis?.searchQueries ?? [])].filter((query) => query.length > 2))].slice(0, 4);
+    return [...new Set([brandModel, primary, fallback, ...(analysis?.searchQueries ?? [])].filter((query) => query.length > 2))].slice(0, 4);
   };
 
   const saveProductDetails = async () => {
@@ -243,7 +260,7 @@ function App() {
             ["draft", "Anzeige"],
             ["publish", "Assist"]
           ].map(([id, label]) => (
-            <button key={id} className={step === id ? "active" : ""} onClick={() => setStep(id as Step)}>
+            <button key={id} className={step === id ? "active" : ""} onClick={() => openStep(id as Step)}>
               {label}
             </button>
           ))}
@@ -400,6 +417,12 @@ function App() {
                 <div className="emptyState">
                   <h3>Keine Vergleichsangebote gefunden</h3>
                   <p>Prüfe Produkt, Marke und Modell oder versuche allgemeinere Suchbegriffe.</p>
+                  {analysis && (
+                    <button className="secondary" disabled={!!busy} onClick={searchPrices}>
+                      <Search size={18} />
+                      Erneut suchen
+                    </button>
+                  )}
                 </div>
               )}
               {comparables.map((listing) => (

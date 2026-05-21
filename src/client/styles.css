@@ -174,7 +174,8 @@ dd {
 }
 
 .dropzone label,
-.primary {
+.primary,
+.secondary {
   min-height: 44px;
   border: 0;
   border-radius: 6px;
@@ -219,7 +220,13 @@ dd {
   color: white;
 }
 
-.primary:disabled {
+.secondary {
+  background: #e6eddf;
+  color: #172018;
+}
+
+.primary:disabled,
+.secondary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
