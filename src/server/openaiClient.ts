@@ -1,10 +1,9 @@
 import fs from "node:fs/promises";
-import OpenAI from "openai";
-import { zodTextFormat } from "openai/helpers/zod";
+import OpenAI, { APIError } from "openai";
 import type { ListingDraft, PriceRecommendation, ProductAnalysis } from "../shared/types.js";
 import { config, getOpenaiApiKey } from "./config.js";
 import type { StoredSessionState } from "./sessionStore.js";
-import { AIProductAnalysisSchema, ProductAnalysisSchema, parseJsonObject } from "./validators.js";
+import { PRODUCT_ANALYSIS_TEXT_FORMAT, ProductAnalysisSchema, parseJsonObject } from "./validators.js";
 
 function fallbackAnalysis(): ProductAnalysis {
   return {
@@ -24,6 +23,41 @@ function makeClient() {
   return new OpenAI({ apiKey });
 }
 
+function normalizeOpenAIError(error: unknown): Error {
+  if (error instanceof APIError) {
+    if (error.status === 401) {
+      return Object.assign(new Error("Der OpenAI API-Key wurde abgelehnt. Bitte prüfe den Key."), { statusCode: 401 });
+    }
+    if (error.status === 429) {
+      return Object.assign(new Error("OpenAI hat das aktuelle Limit erreicht. Bitte später erneut versuchen."), { statusCode: 429 });
+    }
+    return Object.assign(new Error("Die OpenAI-Anfrage ist fehlgeschlagen. Bitte erneut versuchen."), { statusCode: 502 });
+  }
+  return error instanceof Error ? error : new Error("Die OpenAI-Anfrage ist fehlgeschlagen. Bitte erneut versuchen.");
+}
+
+function normalizeAnalysisPayload(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const payload = value as { detectedAttributes?: unknown };
+  if (Array.isArray(payload.detectedAttributes)) {
+    return {
+      ...payload,
+      detectedAttributes: Object.fromEntries(
+        payload.detectedAttributes
+          .filter(
+            (entry): entry is { name: string; value: string } =>
+              Boolean(entry) &&
+              typeof entry === "object" &&
+              typeof (entry as { name?: unknown }).name === "string" &&
+              typeof (entry as { value?: unknown }).value === "string"
+          )
+          .map((entry) => [entry.name, entry.value])
+      )
+    };
+  }
+  return value;
+}
+
 export async function analyzeProduct(session: StoredSessionState): Promise<ProductAnalysis> {
   const client = makeClient();
   if (!client) {
@@ -38,28 +72,32 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
     }))
   );
 
-  const response = await client.responses.create({
-    model: config.openaiModel,
-    text: {
-      format: zodTextFormat(AIProductAnalysisSchema, "product_analysis")
-    },
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text:
-              "Analysiere diese Produktbilder für einen privaten Kleinanzeigen-Verkauf. Antworte ausschließlich als JSON mit productType, brand, model, condition, confidence, detectedAttributes, openQuestions, searchQueries, suggestedCategory."
-          },
-          ...imageInputs
-        ]
-      }
-    ]
-  });
+  const response = await client.responses
+    .create({
+      model: config.openaiModel,
+      text: {
+        format: PRODUCT_ANALYSIS_TEXT_FORMAT
+      },
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text:
+                "Analysiere diese Produktbilder für einen privaten Kleinanzeigen-Verkauf. Fülle alle Felder im vorgegebenen Schema. Wenn Marke, Modell, Kategorie oder Zustand nicht sicher erkennbar sind, nutze leere Strings beziehungsweise unknown und stelle konkrete Rückfragen in openQuestions."
+            },
+            ...imageInputs
+          ]
+        }
+      ]
+    })
+    .catch((error: unknown) => {
+      throw normalizeOpenAIError(error);
+    });
 
   try {
-    const parsedJson = JSON.parse(response.output_text);
+    const parsedJson = normalizeAnalysisPayload(JSON.parse(response.output_text));
     const parsed = ProductAnalysisSchema.safeParse(parsedJson);
     if (parsed.success) return parsed.data;
   } catch {

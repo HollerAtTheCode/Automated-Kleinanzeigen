@@ -106,22 +106,39 @@ dd {
   color: #566156;
 }
 
-.status,
 .error {
   border-radius: 6px;
   padding: 10px 12px;
 }
 
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: #e6eddf;
-}
-
 .error {
   background: #ffe7df;
   color: #8a2d14;
+}
+
+.busyOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(245, 247, 243, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.busyDialog {
+  min-width: min(360px, calc(100vw - 48px));
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  border: 1px solid #cfd8c8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172018;
+  box-shadow: 0 18px 48px rgba(23, 32, 24, 0.18);
+  padding: 24px;
+  text-align: center;
 }
 
 .spin {

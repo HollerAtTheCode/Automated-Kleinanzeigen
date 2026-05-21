@@ -207,15 +207,17 @@ function App() {
             <h1>Kleinanzeigen Verkaufsassistent</h1>
             <p>Fotos auswerten, Marktpreise vergleichen und die Anzeige vorbereiten.</p>
           </div>
-          {busy && (
-            <span className="status">
-              <Loader2 size={16} className="spin" />
-              {busy}
-            </span>
-          )}
         </header>
 
         {error && <div className="error">{error}</div>}
+        {busy && (
+          <div className="busyOverlay" role="status" aria-live="polite">
+            <div className="busyDialog">
+              <Loader2 size={34} className="spin" />
+              <strong>{busy}</strong>
+            </div>
+          </div>
+        )}
 
         {step === "upload" && (
           <section

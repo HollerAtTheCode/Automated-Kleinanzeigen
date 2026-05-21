@@ -28,6 +28,49 @@ export const AIProductAnalysisSchema = z.object({
   suggestedCategory: z.string()
 });
 
+export const PRODUCT_ANALYSIS_TEXT_FORMAT = {
+  type: "json_schema" as const,
+  name: "product_analysis",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "productType",
+      "brand",
+      "model",
+      "condition",
+      "confidence",
+      "detectedAttributes",
+      "openQuestions",
+      "searchQueries",
+      "suggestedCategory"
+    ],
+    properties: {
+      productType: { type: "string" },
+      brand: { type: "string" },
+      model: { type: "string" },
+      condition: { type: "string", enum: ["new", "like_new", "good", "fair", "defective", "unknown"] },
+      confidence: { type: "number", minimum: 0, maximum: 1 },
+      detectedAttributes: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["name", "value"],
+          properties: {
+            name: { type: "string" },
+            value: { type: "string" }
+          }
+        }
+      },
+      openQuestions: { type: "array", items: { type: "string" } },
+      searchQueries: { type: "array", minItems: 1, maxItems: MAX_SEARCH_QUERIES, items: { type: "string" } },
+      suggestedCategory: { type: "string" }
+    }
+  }
+};
+
 export const SessionIdSchema = z.string().uuid();
 
 export const SearchQueriesSchema = z

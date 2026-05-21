@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  PRODUCT_ANALYSIS_TEXT_FORMAT,
   ProductAnalysisSchema,
   parseExcludedListingIds,
   parseJsonObject,
@@ -28,6 +29,10 @@ describe("ProductAnalysisSchema", () => {
 
   it("parses fenced JSON responses", () => {
     expect(parseJsonObject("```json\n{\"productType\":\"Kamera\"}\n```")).toEqual({ productType: "Kamera" });
+  });
+
+  it("uses an OpenAI structured-output compatible schema", () => {
+    expect(JSON.stringify(PRODUCT_ANALYSIS_TEXT_FORMAT.schema)).not.toContain("propertyNames");
   });
 
   it("rejects non-UUID session ids before filesystem use", () => {
