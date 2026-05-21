@@ -150,8 +150,7 @@ function App() {
             <div className="thumbs">
               {files.map((file, index) => (
                 <figure key={`${file.name}-${index}`}>
-                  <img src={URL.createObjectURL(file)} alt="" />
-                  <figcaption>{file.name}</figcaption>
+                  <img src={URL.createObjectURL(file)} alt={`Produktbild ${index + 1}`} title={file.name} />
                 </figure>
               ))}
             </div>

@@ -207,13 +207,6 @@ figure img {
   border: 1px solid #dde4d7;
 }
 
-figcaption {
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .grid.two {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
