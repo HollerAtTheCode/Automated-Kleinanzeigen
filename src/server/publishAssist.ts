@@ -172,6 +172,7 @@ async function selectPriceType(page: Page, priceType: ListingDraft["priceType"])
 }
 
 async function selectCategory(page: Page, categoryHint?: string) {
+  await page.locator("#ad-category-picker input[name='category-suggestions']").first().waitFor({ state: "attached", timeout: 10_000 }).catch(() => undefined);
   const categoryOptions = await readCategoryOptions(page);
   const candidates = categoryOptions.filter((option) => option.text.includes("→"));
   const wantedTokens = expandCategoryTokens(normalizeCategoryText(categoryHint ?? ""))
@@ -186,24 +187,24 @@ async function selectCategory(page: Page, categoryHint?: string) {
   const selected = ranked[0];
   if (!selected || selected.score === 0) return false;
 
-  if (await clickCategoryLabel(page, selected.text)) {
-    if (await isCategoryChecked(page, selected.text)) return true;
+  if (await clickCategoryOption(page, selected)) {
+    if (await isCategorySelected(page, selected)) return true;
   }
 
-  const radio = page.locator("input[type='radio']").nth(selected.index);
+  const radio = page.locator(`#ad-category-picker input[name='category-suggestions'][value='${selected.value}']`).first();
   if ((await radio.count()) > 0) {
     await radio.click({ force: true });
-    if (await isCategoryChecked(page, selected.text)) return true;
+    if (await isCategorySelected(page, selected)) return true;
   }
 
-  return false;
+  return setCategoryFallback(page, selected);
 }
 
 async function readCategoryOptions(page: Page) {
-  return page.locator("input[type='radio']").evaluateAll((nodes) =>
+  return page.locator("#ad-category-picker input[name='category-suggestions']").evaluateAll((nodes) =>
     nodes.map((node, index) => {
       const input = node as HTMLInputElement;
-      const label = input.closest("label");
+      const label = input.id ? document.querySelector<HTMLLabelElement>(`label[for="${CSS.escape(input.id)}"]`) : input.closest("label");
       const row = input.parentElement;
       return {
         index,
@@ -217,25 +218,37 @@ async function readCategoryOptions(page: Page) {
   );
 }
 
-async function clickCategoryLabel(page: Page, labelText: string) {
-  const labels = [
-    page.locator("label").filter({ hasText: labelText }).first(),
-    page.getByText(labelText, { exact: true }).first()
-  ];
+type CategoryOption = Awaited<ReturnType<typeof readCategoryOptions>>[number];
 
-  for (const label of labels) {
-    if ((await label.count()) === 0) continue;
-    if (!(await label.isVisible().catch(() => false))) continue;
-    await label.click();
-    await page.waitForTimeout(250);
-    return true;
-  }
-  return false;
+async function clickCategoryOption(page: Page, option: CategoryOption) {
+  const label = page.locator(`#ad-category-picker label[for='${option.id}']`).first();
+  if ((await label.count()) === 0 || !(await label.isVisible().catch(() => false))) return false;
+  await label.click();
+  await page.waitForTimeout(350);
+  return true;
 }
 
-async function isCategoryChecked(page: Page, labelText: string) {
+async function isCategorySelected(page: Page, selected: CategoryOption) {
   const options = await readCategoryOptions(page);
-  return options.some((option) => option.text === labelText && option.checked);
+  const hiddenValue = await page.locator("input[name='categoryId']").first().getAttribute("value").catch(() => "");
+  return hiddenValue === selected.value || options.some((option) => option.value === selected.value && option.checked);
+}
+
+async function setCategoryFallback(page: Page, selected: CategoryOption) {
+  return page.evaluate((option) => {
+    const radio = document.querySelector<HTMLInputElement>(
+      `#ad-category-picker input[name='category-suggestions'][value="${CSS.escape(option.value)}"]`
+    );
+    const hidden = document.querySelector<HTMLInputElement>("input[name='categoryId']");
+    if (!radio || !hidden) return false;
+    radio.checked = true;
+    hidden.value = option.value;
+    for (const element of [radio, hidden]) {
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return true;
+  }, selected);
 }
 
 function normalizeCategoryText(value: string) {
