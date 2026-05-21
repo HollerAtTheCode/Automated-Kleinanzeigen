@@ -230,8 +230,17 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
       : typeof error === "object" && error && "statusCode" in error
         ? Number(error.statusCode)
         : 500;
-  res.status(Number.isFinite(statusCode) ? statusCode : 500).json({
-    error: error instanceof multer.MulterError ? "Invalid image upload." : error instanceof Error ? error.message : "Unexpected server error"
+  const safeStatusCode = Number.isFinite(statusCode) ? statusCode : 500;
+  const clientMessage =
+    error instanceof multer.MulterError
+      ? "Invalid image upload."
+      : safeStatusCode >= 500
+        ? "Unexpected server error"
+        : error instanceof Error
+          ? error.message
+          : "Unexpected server error";
+  res.status(safeStatusCode).json({
+    error: clientMessage
   });
 });
 

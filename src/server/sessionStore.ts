@@ -77,7 +77,24 @@ export async function sessionUploadDir(id: string) {
   return dir;
 }
 
+export function isSafeSessionCleanupPath(targetPath: string, rootDir = config.rootDir) {
+  const resolved = path.resolve(targetPath);
+  const root = path.resolve(rootDir);
+  const tempRoot = path.resolve(os.tmpdir());
+  const relativeToRoot = path.relative(root, resolved);
+  const relativeToTemp = path.relative(tempRoot, resolved);
+  const isInsideProjectRuntime =
+    Boolean(relativeToRoot) && !relativeToRoot.startsWith("..") && !path.isAbsolute(relativeToRoot) && relativeToRoot.startsWith(".runtime");
+  const isInsideTemp =
+    Boolean(relativeToTemp) && !relativeToTemp.startsWith("..") && !path.isAbsolute(relativeToTemp) && resolved.includes("kleinanzeigen");
+
+  return resolved !== path.parse(resolved).root && resolved !== root && (isInsideProjectRuntime || isInsideTemp);
+}
+
 export async function cleanupSessionData() {
+  if (!isSafeSessionCleanupPath(config.sessionDir)) {
+    throw new Error(`Refusing to remove unsafe SESSION_DIR: ${config.sessionDir}`);
+  }
   await fs.rm(config.sessionDir, { recursive: true, force: true });
 }
 
