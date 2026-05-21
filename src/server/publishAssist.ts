@@ -130,7 +130,27 @@ async function fillFirstAvailable(page: Page, selectors: string[], value: string
 }
 
 async function selectPriceType(page: Page, priceType: ListingDraft["priceType"]) {
-  const wanted = priceType === "negotiable" ? [/verhandlungsbasis/i, /^vb$/i] : [/festpreis/i];
+  const targetLabel = priceType === "negotiable" ? "Verhandlungsbasis" : "Festpreis";
+  const targetValue = priceType === "negotiable" ? "NEGOTIABLE" : "FIXED";
+  const wanted = priceType === "negotiable" ? [/verhandlungsbasis/i, /^vb$/i, /negotiable/i] : [/festpreis/i, /fixed/i];
+
+  const customCombobox = page.locator("#ad-price-type").first();
+  if ((await customCombobox.count()) > 0 && (await customCombobox.isVisible().catch(() => false))) {
+    await customCombobox.click();
+    await page.waitForTimeout(250);
+    if (
+      await clickFirstAvailable(page, [
+        `[role='option']:has-text('${targetLabel}')`,
+        `[role='menuitem']:has-text('${targetLabel}')`,
+        `button:has-text('${targetLabel}')`,
+        `li:has-text('${targetLabel}')`,
+        `div:has-text('${targetLabel}')`
+      ])
+    ) {
+      return true;
+    }
+  }
+
   const selects = await page.locator("select").all();
   for (const select of selects) {
     if (!(await select.isVisible().catch(() => false))) continue;
@@ -143,11 +163,23 @@ async function selectPriceType(page: Page, priceType: ListingDraft["priceType"])
     return true;
   }
 
-  for (const pattern of wanted) {
-    const text = pattern.source.includes("vb") ? "VB" : priceType === "negotiable" ? "Verhandlungsbasis" : "Festpreis";
+  for (const text of [targetLabel, priceType === "negotiable" ? "VB" : "Festpreis"]) {
     if (await clickFirstAvailable(page, [`button:has-text('${text}')`, `[role='option']:has-text('${text}')`, `text=${text}`])) return true;
   }
-  return false;
+
+  return page.evaluate(
+    ({ value, label }) => {
+      const input = document.querySelector<HTMLInputElement>("input[name='priceType']");
+      if (!input) return false;
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      const selected = document.querySelector<HTMLElement>("#ad-price-type-selected-option");
+      if (selected) selected.textContent = label;
+      return true;
+    },
+    { value: targetValue, label: targetLabel }
+  );
 }
 
 async function selectCategory(page: Page, categoryHint?: string) {
