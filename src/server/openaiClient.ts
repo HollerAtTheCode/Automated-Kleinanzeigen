@@ -1,9 +1,10 @@
 import fs from "node:fs/promises";
 import OpenAI from "openai";
+import { zodTextFormat } from "openai/helpers/zod";
 import type { ListingDraft, PriceRecommendation, ProductAnalysis } from "../shared/types.js";
 import { config, getOpenaiApiKey } from "./config.js";
 import type { StoredSessionState } from "./sessionStore.js";
-import { ProductAnalysisSchema, parseJsonObject } from "./validators.js";
+import { AIProductAnalysisSchema, ProductAnalysisSchema, parseJsonObject } from "./validators.js";
 
 function fallbackAnalysis(): ProductAnalysis {
   return {
@@ -39,6 +40,9 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
 
   const response = await client.responses.create({
     model: config.openaiModel,
+    text: {
+      format: zodTextFormat(AIProductAnalysisSchema, "product_analysis")
+    },
     input: [
       {
         role: "user",
@@ -54,9 +58,15 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
     ]
   });
 
-  const text = response.output_text;
-  const parsed = ProductAnalysisSchema.safeParse(parseJsonObject(text));
-  return parsed.success ? parsed.data : fallbackAnalysis();
+  try {
+    const parsedJson = JSON.parse(response.output_text);
+    const parsed = ProductAnalysisSchema.safeParse(parsedJson);
+    if (parsed.success) return parsed.data;
+  } catch {
+    // The request uses Structured Outputs, so this should only happen on provider/API failures.
+  }
+
+  throw Object.assign(new Error("Die Bildanalyse konnte nicht ausgewertet werden. Bitte versuche es erneut."), { statusCode: 502 });
 }
 
 export async function generateDraft(session: StoredSessionState, price: PriceRecommendation): Promise<ListingDraft> {

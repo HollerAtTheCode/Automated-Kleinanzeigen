@@ -16,6 +16,18 @@ export const ProductAnalysisSchema = z.object({
   suggestedCategory: z.string().optional()
 });
 
+export const AIProductAnalysisSchema = z.object({
+  productType: z.string().min(1),
+  brand: z.string(),
+  model: z.string(),
+  condition: z.enum(["new", "like_new", "good", "fair", "defective", "unknown"]),
+  confidence: z.number().min(0).max(1),
+  detectedAttributes: z.record(z.string(), z.string()),
+  openQuestions: z.array(z.string()),
+  searchQueries: z.array(z.string().min(1)).min(1).max(MAX_SEARCH_QUERIES),
+  suggestedCategory: z.string()
+});
+
 export const SessionIdSchema = z.string().uuid();
 
 export const SearchQueriesSchema = z
