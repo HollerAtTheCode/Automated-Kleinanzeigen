@@ -233,7 +233,8 @@ async function selectDialogCondition(page: Page, option: { value: string; labels
   if (await isDialogConditionSelected(opener, option.labels)) return true;
 
   await opener.click();
-  await page.locator("[role='dialog']").last().waitFor({ state: "visible", timeout: 5_000 }).catch(() => undefined);
+  const dialog = conditionDialog(page);
+  await dialog.waitFor({ state: "visible", timeout: 5_000 }).catch(() => undefined);
   await page.waitForTimeout(250);
 
   if (!(await chooseDialogConditionOption(page, option))) {
@@ -251,10 +252,20 @@ async function selectDialogCondition(page: Page, option: { value: string; labels
 }
 
 async function chooseDialogConditionOption(page: Page, option: { value: string; labels: string[] }) {
-  const dialog = page.locator("[role='dialog']").last();
+  const dialog = conditionDialog(page);
   const valueInput = dialog.locator(`input[type='radio'][value='${option.value}']`).first();
   if ((await valueInput.count()) > 0) {
-    await valueInput.click({ force: true });
+    const id = await valueInput.getAttribute("id");
+    if (id) {
+      const label = dialog.locator(`label[for='${id}']`).first();
+      if ((await label.count()) > 0 && (await label.isVisible().catch(() => false))) {
+        await label.click();
+      } else {
+        await valueInput.click({ force: true });
+      }
+    } else {
+      await valueInput.click({ force: true });
+    }
     await page.waitForTimeout(200);
     if (await valueInput.evaluate((input) => (input as HTMLInputElement).checked).catch(() => false)) return true;
   }
@@ -288,12 +299,16 @@ async function clickDialogConditionLabel(page: Page, dialog: ReturnType<Page["lo
 }
 
 async function confirmDialogCondition(page: Page) {
-  const dialog = page.locator("[role='dialog']").last();
+  const dialog = conditionDialog(page);
   const confirm = dialog.getByRole("button", { name: "Bestätigen", exact: true }).first();
   if ((await confirm.count()) === 0 || !(await confirm.isVisible().catch(() => false))) return false;
   await confirm.click();
   await dialog.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => undefined);
   return true;
+}
+
+function conditionDialog(page: Page) {
+  return page.locator("dialog[open], [role='dialog']").filter({ hasText: "Zustand" }).last();
 }
 
 async function isDialogConditionSelected(opener: ReturnType<Page["locator"]>, targetLabels: string[]) {
