@@ -30,19 +30,6 @@ const priceTypeLabels = {
   negotiable: "VB"
 } as const;
 
-const shippingLine = "Privatverkauf, keine Garantie oder Rücknahme durch mich. Versand oder Abholung nach Absprache möglich.";
-const pickupLine = "Privatverkauf, keine Garantie oder Rücknahme durch mich. Nur Abholung.";
-
-function withFinalListingLine(text: string, fulfillmentMethod: NonNullable<ProductAnalysis["fulfillmentMethod"]>) {
-  const body = text
-    .replace(shippingLine, "")
-    .replace(pickupLine, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  const finalLine = fulfillmentMethod === "pickup" ? pickupLine : shippingLine;
-  return [body, finalLine].filter(Boolean).join("\n\n");
-}
-
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   if (!response.ok) {
@@ -110,16 +97,15 @@ function App() {
       setSession(uploaded);
       const result = await api<ProductAnalysis>(`/api/session/${session.id}/analyze`, { method: "POST" });
       setAnalysis(result);
-      const fulfillmentMethod = result.fulfillmentMethod ?? "shipping";
       setProductForm({
         productType: result.productType === "Unbekannter Artikel" ? "" : result.productType,
         brand: result.brand ?? "",
         model: result.model ?? "",
         condition: result.condition,
         category: result.suggestedCategory && result.suggestedCategory !== "Sonstiges" ? result.suggestedCategory : "",
-        notes: withFinalListingLine(result.saleNotes ?? "", fulfillmentMethod),
+        notes: result.saleNotes ?? "",
         price: "",
-        fulfillmentMethod,
+        fulfillmentMethod: result.fulfillmentMethod ?? "shipping",
         priceType: result.priceType ?? "negotiable"
       });
       setPriceEdited(false);
@@ -166,13 +152,11 @@ function App() {
     if (!session || !analysis) return null;
     const productType = productForm.productType.trim();
     const category = productForm.category.trim();
-    const saleNotes = withFinalListingLine(productForm.notes, productForm.fulfillmentMethod);
     if (!productType || productForm.condition === "unknown" || !category) {
       setError("Bitte fülle Produkt, Zustand und Kategorie aus.");
       return null;
     }
 
-    setProductForm((current) => ({ ...current, notes: saleNotes }));
     return run("Angaben werden gespeichert", async () => {
       const updated = await api<ProductAnalysis>(`/api/session/${session.id}/analysis`, {
         method: "POST",
@@ -184,7 +168,7 @@ function App() {
           model: productForm.model.trim() || undefined,
           condition: productForm.condition,
           suggestedCategory: category,
-          saleNotes,
+          saleNotes: productForm.notes.trim(),
           fulfillmentMethod: productForm.fulfillmentMethod,
           priceType: productForm.priceType,
           searchQueries: buildSearchQueries()
@@ -212,10 +196,8 @@ function App() {
         body: JSON.stringify({ notes: productForm.notes })
       });
       if (notesResult.saleNotes) {
-        setProductForm((current) => ({ ...current, notes: withFinalListingLine(notesResult.saleNotes, current.fulfillmentMethod) }));
-        setAnalysis((current) =>
-          current ? { ...current, saleNotes: withFinalListingLine(notesResult.saleNotes, productForm.fulfillmentMethod) } : current
-        );
+        setProductForm((current) => ({ ...current, notes: notesResult.saleNotes }));
+        setAnalysis((current) => (current ? { ...current, saleNotes: notesResult.saleNotes } : current));
       }
       const price = await api<PriceRecommendation>(`/api/session/${session.id}/price-recommendation`, {
         method: "POST",
@@ -408,8 +390,7 @@ function App() {
                     onChange={(event) =>
                       setProductForm({
                         ...productForm,
-                        fulfillmentMethod: event.target.value as NonNullable<ProductAnalysis["fulfillmentMethod"]>,
-                        notes: withFinalListingLine(productForm.notes, event.target.value as NonNullable<ProductAnalysis["fulfillmentMethod"]>)
+                        fulfillmentMethod: event.target.value as NonNullable<ProductAnalysis["fulfillmentMethod"]>
                       })
                     }
                   >
@@ -434,14 +415,6 @@ function App() {
                       </option>
                     ))}
                   </select>
-                </label>
-                <label className="spanTwo">
-                  Anzeigenbeschreibung
-                  <textarea
-                    className="compact"
-                    value={productForm.notes}
-                    onChange={(event) => setProductForm({ ...productForm, notes: event.target.value })}
-                  />
                 </label>
               </div>
               <button className="primary nextAction" disabled={!!busy} onClick={searchPrices}>
