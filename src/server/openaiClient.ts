@@ -159,19 +159,9 @@ export async function generateDraft(session: StoredSessionState, price: PriceRec
   const titleParts = [analysis.brand, analysis.model, analysis.productType].filter(Boolean);
   const itemName = [analysis.brand, analysis.model].filter(Boolean).join(" ").trim() || analysis.productType || "Artikel";
   const title = titleParts.join(" ").replace(/\s+/g, " ").trim().slice(0, 80) || "Artikel zu verkaufen";
-  const baseDescription =
+  const description =
     analysis.saleNotes?.trim() ||
     `Ich verkaufe ${itemName}. Der Artikel ist gebraucht und befindet sich in dem angegebenen Zustand.`;
-  const priceLine = price.suggestedPrice ? `Preisvorstellung: ${price.suggestedPrice} €${priceType === "negotiable" ? " VB" : ""}` : "";
-  const fulfillmentLine = fulfillmentMethod === "pickup" ? "Nur Abholung." : "Versand oder Abholung nach Absprache möglich.";
-  const description = [
-    baseDescription,
-    `Der Artikel wurde privat genutzt und wird wegen Nichtgebrauch abgegeben.`,
-    `Privatverkauf, keine Garantie oder Rücknahme durch mich. ${fulfillmentLine}`,
-    priceLine
-  ]
-    .filter(Boolean)
-    .join("\n\n");
 
   return {
     title,
