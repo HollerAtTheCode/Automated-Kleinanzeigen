@@ -166,7 +166,7 @@ export async function generateDraft(session: StoredSessionState, price: PriceRec
   const fulfillmentLine = fulfillmentMethod === "pickup" ? "Nur Abholung." : "Versand oder Abholung nach Absprache möglich.";
   const description = [
     baseDescription,
-    `Der Artikel wurde privat genutzt und wird wegen Nichtgebrauch abgegeben.`,
+    "Der Artikel wurde privat genutzt und wird wegen Nichtgebrauch abgegeben.",
     `Privatverkauf, keine Garantie oder Rücknahme durch mich. ${fulfillmentLine}`,
     priceLine
   ]
