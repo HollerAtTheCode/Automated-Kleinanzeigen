@@ -6,7 +6,7 @@ const MAX_SEARCH_QUERY_LENGTH = 120;
 const MAX_EXCLUDED_LISTING_IDS = 100;
 
 export const CONSERVATIVE_CONDITION_INSTRUCTIONS =
-  "Bewerte den Zustand konservativ. 'new' nur bei unbenutzter Neuware mit klarer Verpackungs-/Neuwaren-Evidenz. 'like_new' nur, wenn keine sichtbaren Gebrauchsspuren, Kratzer, Dellen, Display-/Gehäuseschäden, fehlende Teile oder sonstige Mängel vorhanden sind. Sobald solche Spuren sichtbar oder plausibel unklar sind, wähle nicht 'new' oder 'like_new', sondern mindestens 'good'. Bei deutlichen Schäden, starken Gebrauchsspuren, Rissen, Display-/Gehäuseschäden, fehlenden Teilen oder Funktionszweifeln wähle 'fair' oder 'defective'. Wenn du unsicher bist, beschreibe die Unsicherheit in openQuestions und saleNotes sachlich und wähle lieber 'good' oder 'fair' statt zu optimistisch.";
+  "Bewerte den Zustand konservativ. 'new' nur bei unbenutzter Neuware mit klarer Verpackungs-/Neuwaren-Evidenz. 'like_new' nur, wenn keine sichtbaren Gebrauchsspuren, Kratzer, Dellen, Display-/Gehäuseschäden, fehlende Teile oder sonstige Mängel vorhanden sind. Sobald solche Spuren sichtbar oder plausibel unklar sind, wähle nicht 'new' oder 'like_new', sondern mindestens 'good'. Bei deutlichen Schäden, starken Gebrauchsspuren, Rissen, Display-/Gehäuseschäden, fehlenden Teilen oder Funktionszweifeln wähle 'fair' oder 'defective'. Wenn du unsicher bist, bleibe in saleNotes sachlich und wähle lieber 'good' oder 'fair' statt zu optimistisch.";
 
 const moderateDamagePatterns = [
   /\bkratzer\w*\b/i,
@@ -69,7 +69,6 @@ export function hasProductDamageEvidence(analysis?: ProductAnalysis) {
   if (!analysis) return false;
   const evidenceTexts = [
     ...Object.entries(analysis.detectedAttributes ?? {}).map(([name, value]) => `${name}: ${value}`),
-    ...(analysis.openQuestions ?? []),
     analysis.saleNotes ?? ""
   ];
   return evidenceTexts.some((text) => hasEvidence(text, [...moderateDamagePatterns, ...strongDamagePatterns]));
@@ -94,18 +93,12 @@ function conservativeDamageNotes(analysis: ProductAnalysis) {
 export function applyConservativeConditionPolicy(analysis: ProductAnalysis): ProductAnalysis {
   const evidenceTexts = [
     ...Object.entries(analysis.detectedAttributes ?? {}).map(([name, value]) => `${name}: ${value}`),
-    ...(analysis.openQuestions ?? []),
     analysis.saleNotes ?? ""
   ];
   const hasStrongDamage = evidenceTexts.some((text) => hasEvidence(text, strongDamagePatterns));
   const hasModerateDamage = hasStrongDamage || hasProductDamageEvidence(analysis);
 
   if (!hasModerateDamage) return analysis;
-
-  const openQuestions = [...(analysis.openQuestions ?? [])];
-  if (openQuestions.length === 0) {
-    openQuestions.push("Bitte prüfe und beschreibe sichtbare Schäden, Kratzer, fehlende Teile oder Funktionsprobleme genauer.");
-  }
 
   const saleNotes = analysis.saleNotes?.trim();
   const shouldReplaceNotes = !saleNotes || hasDamageNegation(saleNotes);
@@ -118,8 +111,7 @@ export function applyConservativeConditionPolicy(analysis: ProductAnalysis): Pro
           ? "fair"
           : "good"
         : analysis.condition,
-    saleNotes: shouldReplaceNotes ? conservativeDamageNotes(analysis) : analysis.saleNotes,
-    openQuestions
+    saleNotes: shouldReplaceNotes ? conservativeDamageNotes(analysis) : analysis.saleNotes
   };
 }
 
@@ -130,7 +122,6 @@ export const ProductAnalysisSchema = z.object({
   condition: z.enum(["new", "like_new", "good", "fair", "defective", "unknown"]).catch("unknown"),
   confidence: z.number().min(0).max(1).catch(0.35),
   detectedAttributes: z.record(z.string(), z.string()).catch({}),
-  openQuestions: z.array(z.string()).catch([]),
   searchQueries: z.array(z.string()).min(1).catch(["gebrauchter Artikel"]),
   suggestedCategory: z.string().optional(),
   saleNotes: z.string().optional(),
@@ -145,7 +136,6 @@ export const AIProductAnalysisSchema = z.object({
   condition: z.enum(["new", "like_new", "good", "fair", "defective", "unknown"]),
   confidence: z.number().min(0).max(1),
   detectedAttributes: z.record(z.string(), z.string()),
-  openQuestions: z.array(z.string()),
   searchQueries: z.array(z.string().min(1)).min(1).max(MAX_SEARCH_QUERIES),
   suggestedCategory: z.string()
 });
@@ -164,7 +154,6 @@ export const PRODUCT_ANALYSIS_TEXT_FORMAT = {
       "condition",
       "confidence",
       "detectedAttributes",
-      "openQuestions",
       "searchQueries",
       "suggestedCategory",
       "saleNotes"
@@ -187,7 +176,6 @@ export const PRODUCT_ANALYSIS_TEXT_FORMAT = {
           }
         }
       },
-      openQuestions: { type: "array", items: { type: "string" } },
       searchQueries: { type: "array", minItems: 1, maxItems: MAX_SEARCH_QUERIES, items: { type: "string" } },
       suggestedCategory: { type: "string" },
       saleNotes: { type: "string" }

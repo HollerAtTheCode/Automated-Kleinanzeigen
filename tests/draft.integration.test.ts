@@ -16,7 +16,6 @@ describe("draft integration without external services", () => {
         condition: "good",
         confidence: 0.9,
         detectedAttributes: { farbe: "schwarz" },
-        openQuestions: ["Ist die Originalverpackung vorhanden?"],
         searchQueries: ["Comandante C40 schwarz"],
         suggestedCategory: "Haushalt",
         saleNotes: "Ich verkaufe meine Comandante C40. Sie ist gepflegt und funktioniert einwandfrei."
@@ -50,7 +49,6 @@ describe("draft integration without external services", () => {
         condition: "like_new",
         confidence: 0.9,
         detectedAttributes: { zustand: "Kratzer am Gehaeuse und kleine Delle an der Ecke" },
-        openQuestions: [],
         searchQueries: ["Sony RX100"],
         suggestedCategory: "Foto",
         saleNotes: "Kratzer oder Beschädigungen gibt es keine."
@@ -77,7 +75,6 @@ describe("draft integration without external services", () => {
         condition: "good",
         confidence: 0.9,
         detectedAttributes: { zubehoer: "Kamera, Tasche, USB-C Kabel" },
-        openQuestions: ["Ist die Originalverpackung vorhanden?"],
         searchQueries: ["Osmo Pocket 3"],
         suggestedCategory: "Foto",
         saleNotes:
@@ -91,7 +88,6 @@ describe("draft integration without external services", () => {
     expect(draft.description).toContain("Das Display ist sauber und ohne tiefe Kratzer.");
     expect(draft.description).toContain("Das Objektivglas ist sauber.");
     expect(draft.description).not.toMatch(/wirkt|scheint|anhand der Bilder|kann ich nicht garantieren|kann ich nicht sagen/i);
-    expect(draft.missingFacts).toEqual(["Ist die Originalverpackung vorhanden?"]);
   });
 
   it("formats known accessory sets as a bullet list", async () => {
@@ -106,7 +102,6 @@ describe("draft integration without external services", () => {
         condition: "good",
         confidence: 0.9,
         detectedAttributes: { lieferumfang: "Kamera, Tasche, USB-C Kabel" },
-        openQuestions: [],
         searchQueries: ["Osmo Pocket 3"],
         suggestedCategory: "Foto",
         saleNotes: "Ich verkaufe meine DJI Osmo Pocket 3."
@@ -134,7 +129,6 @@ describe("draft integration without external services", () => {
           zustand: "Display ohne klar erkennbare Kratzer, Objektivglas sauber und ohne erkennbare Kratzer, Gimbal und Kamerakopf ohne sichtbare Beschädigungen oder Dellen",
           lieferumfang: "Transporttasche, Griff/Ministativ, Funkmikro mit Fell-Windschutz, USB-C Kabel, Handschlaufe, Putztuch"
         },
-        openQuestions: [],
         searchQueries: ["DJI Osmo Pocket 3"],
         suggestedCategory: "Foto",
         saleNotes: "Kratzer oder Beschädigungen gibt es keine."

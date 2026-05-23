@@ -18,14 +18,12 @@ describe("ProductAnalysisSchema", () => {
       condition: "mystery",
       confidence: 4,
       detectedAttributes: null,
-      openQuestions: null,
       searchQueries: []
     });
 
     expect(result.productType).toBe("Unbekannter Artikel");
     expect(result.condition).toBe("unknown");
     expect(result.confidence).toBe(0.35);
-    expect(result.openQuestions).toEqual([]);
     expect(result.searchQueries).toEqual(["gebrauchter Artikel"]);
   });
 
@@ -51,16 +49,12 @@ describe("ProductAnalysisSchema", () => {
       condition: "like_new",
       confidence: 0.8,
       detectedAttributes: { zustand: "leichte Kratzer am Gehaeuse, kleine Delle an der Ecke" },
-      openQuestions: [],
       searchQueries: ["Sony RX100"],
       suggestedCategory: "Foto"
     });
 
     expect(result.condition).toBe("good");
     expect(result.saleNotes).toContain("Kratzer");
-    expect(result.openQuestions).toEqual([
-      "Bitte prüfe und beschreibe sichtbare Schäden, Kratzer, fehlende Teile oder Funktionsprobleme genauer."
-    ]);
   });
 
   it("uses fair instead of like_new for strong damage evidence", () => {
@@ -69,13 +63,11 @@ describe("ProductAnalysisSchema", () => {
       condition: "new",
       confidence: 0.8,
       detectedAttributes: { display: "Displayriss und Gehaeuseschaden sichtbar" },
-      openQuestions: ["Funktioniert der Bildschirm noch ohne Einschraenkung?"],
       searchQueries: ["Kamera"],
       suggestedCategory: "Foto"
     });
 
     expect(result.condition).toBe("fair");
-    expect(result.openQuestions).toEqual(["Funktioniert der Bildschirm noch ohne Einschraenkung?"]);
   });
 
   it("replaces damage-negating sale notes when damage evidence exists", () => {
@@ -84,7 +76,6 @@ describe("ProductAnalysisSchema", () => {
       condition: "like_new",
       confidence: 0.8,
       detectedAttributes: { zustand: "Kratzer am Objektivring" },
-      openQuestions: [],
       searchQueries: ["Kamera"],
       suggestedCategory: "Foto",
       saleNotes: "Kratzer oder Beschädigungen gibt es keine."
@@ -101,7 +92,6 @@ describe("ProductAnalysisSchema", () => {
       condition: "like_new",
       confidence: 0.8,
       detectedAttributes: { zustand: "sehr gepflegt" },
-      openQuestions: [],
       searchQueries: ["Kamera"],
       suggestedCategory: "Foto",
       saleNotes: "Kratzer oder Beschädigungen gibt es keine."
