@@ -44,8 +44,8 @@ const strongDamagePatterns = [
 
 const negatedDamagePhrases = [
   /\bkratzer\s+oder\s+beschädigungen\s+gibt\s+es\s+keine\b/gi,
-  /\b(?:es\s+gibt\s+)?kein(?:e|en|er|es)?\s+(?:sichtbare\s+)?(?:kratzer|beschädigungen?|mängel|gebrauchsspuren?|schäden|damage|scratches|wear)\b/gi,
-  /\bohne\s+(?:sichtbare\s+)?(?:kratzer|beschädigungen?|mängel|gebrauchsspuren?|schäden|damage|scratches|wear)\b/gi
+  /\b(?:es\s+gibt\s+)?kein(?:e|en|er|es)?\s+(?:(?:sichtbare|erkennbare|klar\s+erkennbare)\s+)?(?:kratzer|risse|beschädigungen?|mängel|gebrauchsspuren?|schäden|damage|scratches|wear)\b/gi,
+  /\bohne\s+(?:(?:sichtbare|erkennbare|klar\s+erkennbare)\s+)?(?:kratzer|risse|dellen|beschädigungen?|mängel|gebrauchsspuren?|schäden|damage|scratches|wear)(?:\s+oder\s+(?:kratzer|risse|dellen|beschädigungen?|mängel|schäden))?\b/gi
 ];
 
 function normalizeEvidenceText(text: string) {
@@ -77,7 +77,12 @@ export function hasProductDamageEvidence(analysis?: ProductAnalysis) {
 function damageEvidenceSnippets(analysis: ProductAnalysis) {
   return Object.entries(analysis.detectedAttributes ?? {})
     .filter(([name, value]) => hasEvidence(`${name}: ${value}`, [...moderateDamagePatterns, ...strongDamagePatterns]))
-    .map(([, value]) => value.trim())
+    .flatMap(([, value]) =>
+      value
+        .split(/[,;\n]+/)
+        .map((snippet) => snippet.trim())
+        .filter((snippet) => hasEvidence(snippet, [...moderateDamagePatterns, ...strongDamagePatterns]))
+    )
     .filter(Boolean)
     .slice(0, 3);
 }

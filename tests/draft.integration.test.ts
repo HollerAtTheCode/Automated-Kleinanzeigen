@@ -111,10 +111,10 @@ describe("draft integration without external services", () => {
 
     const draft = await generateDraft(session, recommendPrice(session.comparables));
 
-    expect(draft.description).toContain("Lieferumfang:\n- Kamera\n- Tasche\n- USB-C Kabel");
+    expect(draft.description).toContain("Lieferumfang:\n- DJI Osmo Pocket 3\n- Kamera\n- Tasche\n- USB-C Kabel");
   });
 
-  it("turns conservative damage fallback notes into a seller-ready listing", async () => {
+  it("does not turn neutral no-damage condition notes into usage marks", async () => {
     const session: StoredSessionState = {
       id: "test",
       createdAt: new Date(0).toISOString(),
@@ -131,7 +131,7 @@ describe("draft integration without external services", () => {
         },
         searchQueries: ["DJI Osmo Pocket 3"],
         suggestedCategory: "Foto",
-        saleNotes: "Kratzer oder Beschädigungen gibt es keine."
+        saleNotes: "Ich verkaufe hier meine DJI Osmo Pocket 3. Das Display ist sauber und ohne erkennbare Kratzer oder Risse."
       },
       comparables: [{ id: "a", source: "kleinanzeigen", title: "DJI Osmo Pocket 3", price: 400, url: "https://example.test/a", score: 1 }]
     };
@@ -139,8 +139,39 @@ describe("draft integration without external services", () => {
     const draft = await generateDraft(session, recommendPrice(session.comparables));
 
     expect(draft.description).toMatch(/^Ich verkaufe hier meine DJI Osmo Pocket 3\./);
-    expect(draft.description).toContain("Der Zustand ist gebraucht mit folgenden Gebrauchsspuren:");
+    expect(draft.condition).toBe("like_new");
+    expect(draft.description).not.toContain("Der Zustand ist gebraucht mit folgenden Gebrauchsspuren:");
     expect(draft.description).not.toMatch(/Bitte prüfe|vor dem Einstellen|kann ich nicht/i);
-    expect(draft.description).toContain("Lieferumfang:\n- Transporttasche\n- Griff/Ministativ\n- Funkmikro mit Fell-Windschutz");
+    expect(draft.description).toContain("Lieferumfang:\n- DJI Osmo Pocket 3\n- Transporttasche\n- Griff/Ministativ\n- Funkmikro mit Fell-Windschutz");
+  });
+
+  it("turns actual damage evidence into seller-ready condition wording", async () => {
+    const session: StoredSessionState = {
+      id: "test",
+      createdAt: new Date(0).toISOString(),
+      images: [{ id: "img1", filename: "front.jpg", mimeType: "image/jpeg", size: 100, path: "/tmp/front.jpg" }],
+      analysis: {
+        productType: "Kamera",
+        brand: "DJI",
+        model: "Osmo Pocket 3",
+        condition: "like_new",
+        confidence: 0.9,
+        detectedAttributes: {
+          zustand: "leichte Kratzer am Gehäuse neben dem Objektiv, Display ohne erkennbare Kratzer oder Risse",
+          lieferumfang: "Kamera, Weitwinkellinse, Tragetasche, Funkmikro, USB-C Kabel"
+        },
+        searchQueries: ["DJI Osmo Pocket 3"],
+        suggestedCategory: "Foto",
+        saleNotes: "Kratzer oder Beschädigungen gibt es keine."
+      },
+      comparables: [{ id: "a", source: "kleinanzeigen", title: "DJI Osmo Pocket 3", price: 400, url: "https://example.test/a", score: 1 }]
+    };
+
+    const draft = await generateDraft(session, recommendPrice(session.comparables));
+
+    expect(draft.condition).toBe("good");
+    expect(draft.description).toContain("leichte Kratzer am Gehäuse neben dem Objektiv");
+    expect(draft.description).not.toContain("Display ohne erkennbare Kratzer oder Risse.");
+    expect(draft.description).toContain("Lieferumfang:\n- DJI Osmo Pocket 3\n- Kamera\n- Weitwinkellinse\n- Tragetasche\n- Funkmikro\n- USB-C Kabel");
   });
 });
