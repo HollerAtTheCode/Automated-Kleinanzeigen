@@ -86,9 +86,9 @@ function damageEvidenceSnippets(analysis: ProductAnalysis) {
 function conservativeDamageNotes(analysis: ProductAnalysis) {
   const snippets = damageEvidenceSnippets(analysis);
   if (snippets.length > 0) {
-    return `Der Artikel hat Gebrauchsspuren: ${snippets.join(", ")}. Bitte prüfe die Details vor dem Einstellen noch einmal.`;
+    return `Der Artikel ist gebraucht und hat Gebrauchsspuren: ${snippets.join(", ")}.`;
   }
-  return "Der Artikel hat erkennbare Gebrauchsspuren oder mögliche Beschädigungen. Bitte prüfe Kratzer, Gehäuse, Display, fehlende Teile und Funktion vor dem Einstellen noch einmal.";
+  return "Der Artikel ist gebraucht und hat erkennbare Gebrauchsspuren.";
 }
 
 export function applyConservativeConditionPolicy(analysis: ProductAnalysis): ProductAnalysis {
