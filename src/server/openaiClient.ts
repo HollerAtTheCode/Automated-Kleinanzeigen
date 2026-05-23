@@ -17,7 +17,6 @@ function fallbackAnalysis(): ProductAnalysis {
     condition: "unknown",
     confidence: 0.2,
     detectedAttributes: {},
-    openQuestions: ["Was genau wird verkauft?", "Gibt es bekannte Mängel?", "Welches Zubehör ist enthalten?"],
     searchQueries: ["gebrauchter Artikel Kleinanzeigen"],
     suggestedCategory: "Sonstiges",
     saleNotes: "",
@@ -179,7 +178,7 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
               text: [
                 "Analysiere diese Produktbilder für einen privaten Kleinanzeigen-Verkauf. Fülle alle Felder im vorgegebenen Schema.",
                 CONSERVATIVE_CONDITION_INSTRUCTIONS,
-                "Erfasse sichtbare Kratzer, Dellen, Display- oder Gehäuseschäden, fehlende Teile und deutliche Gebrauchsspuren explizit in detectedAttributes und saleNotes. Wenn Kratzer klar sichtbar sind, benenne sie direkt und konkret mit Ort, z. B. Kratzer am Gehäuse um die Linse, statt sie nur als mögliche Spuren zu umschreiben. saleNotes soll bereits wie ein natürlicher Text aus Sicht des Verkäufers klingen, nicht wie eine externe Bildbeobachtung. Beginne wie eine echte Anzeige, z. B. 'Ich verkaufe hier meine ...'. Schreibe in der Ich-Form, mit 2 bis 4 kurzen Absätzen, verkaufsnah und sachlich. Beschreibe Zustand, Zubehör und Gebrauchsspuren so, als würde ich meinen eigenen Artikel anbieten. Verwende keine Semikolons. Verwende aktive, direkte Verkäufersprache wie 'Das Display ist sauber und ohne Kratzer' statt 'wirkt sauber'. Verwende keine Formulierungen wie 'auf den Fotos sichtbar', 'sichtbarer Zustand', 'wirkt', 'scheint', 'vermutlich', 'möglich', 'soweit ich erkennen kann', 'erkennbar', 'aufgefallen', 'ich kann erkennen', 'anhand der Bilder', 'möchte ich nicht ausschließen', 'kann ich nicht garantieren', 'kann ich nicht feststellen', 'kann ich nicht sagen', 'lässt sich nicht feststellen', 'nicht sicher beurteilen', 'bitte prüfe' oder 'technische Mängel'. Schreibe keine Anweisungen an mich in saleNotes. Erfinde keine Mängel. Behaupte nur dann, dass es keine Kratzer oder Beschädigungen gibt, wenn alle relevanten sichtbaren Flächen klar unbeschädigt sind. Unklare Details gehören in openQuestions, nicht als Disclaimer in saleNotes. Wenn mehrere Zubehörteile sicher erkennbar sind, formatiere sie in saleNotes als Bullet List. Wenn Marke, Modell, Kategorie oder Zustand nicht sicher erkennbar sind, nutze leere Strings beziehungsweise unknown und stelle konkrete Rückfragen in openQuestions."
+                "Erfasse sichtbare Kratzer, Dellen, Display- oder Gehäuseschäden, fehlende Teile und deutliche Gebrauchsspuren explizit in detectedAttributes und saleNotes. Wenn Kratzer klar sichtbar sind, benenne sie direkt und konkret mit Ort, z. B. Kratzer am Gehäuse um die Linse, statt sie nur als mögliche Spuren zu umschreiben. saleNotes soll bereits wie ein natürlicher Text aus Sicht des Verkäufers klingen, nicht wie eine externe Bildbeobachtung. Beginne wie eine echte Anzeige, z. B. 'Ich verkaufe hier meine ...'. Schreibe in der Ich-Form, mit 2 bis 4 kurzen Absätzen, verkaufsnah und sachlich. Beschreibe Zustand, Zubehör und Gebrauchsspuren so, als würde ich meinen eigenen Artikel anbieten. Verwende keine Semikolons. Verwende aktive, direkte Verkäufersprache wie 'Das Display ist sauber und ohne Kratzer' statt 'wirkt sauber'. Verwende keine Formulierungen wie 'auf den Fotos sichtbar', 'sichtbarer Zustand', 'wirkt', 'scheint', 'vermutlich', 'möglich', 'soweit ich erkennen kann', 'erkennbar', 'aufgefallen', 'ich kann erkennen', 'anhand der Bilder', 'möchte ich nicht ausschließen', 'kann ich nicht garantieren', 'kann ich nicht feststellen', 'kann ich nicht sagen', 'lässt sich nicht feststellen', 'nicht sicher beurteilen', 'bitte prüfe' oder 'technische Mängel'. Schreibe keine Anweisungen an mich in saleNotes. Erfinde keine Mängel. Behaupte nur dann, dass es keine Kratzer oder Beschädigungen gibt, wenn alle relevanten sichtbaren Flächen klar unbeschädigt sind. Unklare Details nicht als Disclaimer in saleNotes formulieren. Wenn mehrere Zubehörteile sicher erkennbar sind, formatiere sie in saleNotes als Bullet List. Wenn Marke, Modell, Kategorie oder Zustand nicht sicher erkennbar sind, nutze leere Strings beziehungsweise unknown."
               ].join(" ")
             },
             ...imageInputs
@@ -273,7 +272,6 @@ export async function generateDraft(session: StoredSessionState, price: PriceRec
     price,
     priceType,
     fulfillmentMethod,
-    imageOrder,
-    missingFacts: analysis.openQuestions
+    imageOrder
   };
 }
