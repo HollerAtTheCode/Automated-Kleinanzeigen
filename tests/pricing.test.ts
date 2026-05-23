@@ -28,6 +28,7 @@ describe("recommendPrice", () => {
     expect(result.sampleSize).toBe(4);
     expect(result.excludedListingIds).toContain("outlier");
     expect(result.suggestedPrice).toBe(95);
+    expect(result.rationale).toMatch(/konservativen Marktwert/);
   });
 
   it("returns no price when no valid prices exist", () => {
@@ -51,5 +52,31 @@ describe("recommendPrice", () => {
 
     expect(result.usedListingIds).not.toContain("b");
     expect(result.excludedListingIds).toContain("b");
+  });
+
+  it("uses a stronger markdown when many comparable offers are available", () => {
+    const result = recommendPrice([
+      listing("a", 100),
+      listing("b", 100),
+      listing("c", 100),
+      listing("d", 100),
+      listing("e", 100),
+      listing("f", 100),
+      listing("g", 100),
+      listing("h", 100)
+    ]);
+
+    expect(result.sampleSize).toBe(8);
+    expect(result.suggestedPrice).toBe(90);
+    expect(result.rationale).toMatch(/10%/);
+  });
+
+  it("does not inflate skewed inlier samples through high priced listings", () => {
+    const result = recommendPrice([listing("a", 100), listing("b", 100), listing("c", 150), listing("d", 250)]);
+
+    expect(result.sampleSize).toBe(4);
+    expect(result.medianPrice).toBe(125);
+    expect(result.weightedMidPrice).toBe(150);
+    expect(result.suggestedPrice).toBeLessThan(140);
   });
 });

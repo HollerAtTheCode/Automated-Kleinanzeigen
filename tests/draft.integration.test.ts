@@ -37,4 +37,31 @@ describe("draft integration without external services", () => {
     expect(draft.price.suggestedPrice).toBe(180);
     expect(draft.imageOrder).toEqual(["img1"]);
   });
+
+  it("does not carry damage-negating notes into the draft when analysis has damage evidence", async () => {
+    const session: StoredSessionState = {
+      id: "test",
+      createdAt: new Date(0).toISOString(),
+      images: [{ id: "img1", filename: "front.jpg", mimeType: "image/jpeg", size: 100, path: "/tmp/front.jpg" }],
+      analysis: {
+        productType: "Kamera",
+        brand: "Sony",
+        model: "RX100",
+        condition: "like_new",
+        confidence: 0.9,
+        detectedAttributes: { zustand: "Kratzer am Gehaeuse und kleine Delle an der Ecke" },
+        openQuestions: [],
+        searchQueries: ["Sony RX100"],
+        suggestedCategory: "Foto",
+        saleNotes: "Kratzer oder Beschädigungen gibt es keine."
+      },
+      comparables: [{ id: "a", source: "kleinanzeigen", title: "Sony RX100", price: 220, url: "https://example.test/a", score: 1 }]
+    };
+
+    const draft = await generateDraft(session, recommendPrice(session.comparables));
+
+    expect(draft.condition).toBe("good");
+    expect(draft.description).toContain("Kratzer am Gehaeuse");
+    expect(draft.description).not.toContain("Kratzer oder Beschädigungen gibt es keine");
+  });
 });
