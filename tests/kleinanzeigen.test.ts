@@ -9,7 +9,6 @@ const damagedCamera: ProductAnalysis = {
   condition: "fair",
   confidence: 0.8,
   detectedAttributes: { zustand: "Kratzer am Gehaeuse und sichtbare Gebrauchsspuren" },
-  openQuestions: [],
   searchQueries: ["DJI Osmo Pocket 3 Creator Combo"],
   suggestedCategory: "Elektronik"
 };

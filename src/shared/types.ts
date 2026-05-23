@@ -12,7 +12,6 @@ export type ProductAnalysis = {
   condition: "new" | "like_new" | "good" | "fair" | "defective" | "unknown";
   confidence: number;
   detectedAttributes: Record<string, string>;
-  openQuestions: string[];
   searchQueries: string[];
   suggestedCategory?: string;
   saleNotes?: string;
@@ -52,7 +51,6 @@ export type ListingDraft = {
   priceType: "fixed" | "negotiable";
   fulfillmentMethod: "pickup" | "shipping";
   imageOrder: string[];
-  missingFacts: string[];
 };
 
 export type PublishAssistState = {
