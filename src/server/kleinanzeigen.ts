@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { chromium } from "playwright";
 import type { ComparableListing, ProductAnalysis } from "../shared/types.js";
+import { hasProductDamageEvidence } from "./validators.js";
 
 function normalizeText(value: string) {
   return value.toLowerCase().replace(/[\u2010-\u2015]/g, "-").replace(/[^a-z0-9äöüß+]+/g, " ").replace(/\s+/g, " ").trim();
@@ -10,10 +11,30 @@ function hasToken(text: string, token: string) {
   return new RegExp(`(^|\\s)${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(text);
 }
 
-function isWantedListing(title: string, analysis?: ProductAnalysis) {
+function isDamagedOwnProduct(analysis?: ProductAnalysis) {
+  return analysis?.condition === "fair" || analysis?.condition === "defective" || hasProductDamageEvidence(analysis);
+}
+
+function isSearchListing(normalizedTitle: string) {
+  return /\b(?:ich\s+)?suche\b/.test(normalizedTitle) || /\bgesucht\b/.test(normalizedTitle) || /\bauf\s+der\s+suche\b/.test(normalizedTitle);
+}
+
+function hasDamageTerms(normalizedTitle: string) {
+  return /\b(defekt|kaputt|beschädigt|beschaedigt|ersatzteil|kratzer|delle|riss|gebrauchsspuren)\b/.test(normalizedTitle);
+}
+
+function hasPremiumConditionTerms(normalizedTitle: string) {
+  return /\b(neu|neue|neuer|neues|wie\s+neu|neuwertig|ovp|originalverpackt|unbenutzt|kaum\s+benutzt|top\s+zustand|topzustand|sehr\s+guter\s+zustand)\b/.test(
+    normalizedTitle
+  );
+}
+
+export function isWantedListing(title: string, analysis?: ProductAnalysis) {
   const normalizedTitle = normalizeText(title);
-  if (/^(suche|gesucht)\b/.test(normalizedTitle)) return false;
-  if (analysis?.condition !== "defective" && /\b(defekt|kaputt|beschädigt|ersatzteil)\b/.test(normalizedTitle)) return false;
+  const damagedOwnProduct = isDamagedOwnProduct(analysis);
+  if (isSearchListing(normalizedTitle)) return false;
+  if (!damagedOwnProduct && hasDamageTerms(normalizedTitle)) return false;
+  if (damagedOwnProduct && hasPremiumConditionTerms(normalizedTitle)) return false;
 
   const normalizedModel = normalizeText(analysis?.model ?? "");
   const wantsPocket3 = hasToken(normalizedModel, "pocket") && hasToken(normalizedModel, "3");
@@ -30,7 +51,7 @@ function isWantedListing(title: string, analysis?: ProductAnalysis) {
   return true;
 }
 
-function scoreListing(title: string, query: string, analysis?: ProductAnalysis) {
+export function scoreListing(title: string, query: string, analysis?: ProductAnalysis) {
   const haystack = normalizeText(title);
   const terms = new Set(
     [query, analysis?.brand, analysis?.model, analysis?.productType]
@@ -40,7 +61,8 @@ function scoreListing(title: string, query: string, analysis?: ProductAnalysis) 
   );
   if (terms.size === 0) return 0.5;
   const matches = [...terms].filter((term) => hasToken(haystack, term)).length;
-  return Math.max(0.1, Math.min(1, matches / terms.size));
+  const conditionMultiplier = isDamagedOwnProduct(analysis) && hasPremiumConditionTerms(haystack) ? 0.25 : 1;
+  return Math.max(0.1, Math.min(1, (matches / terms.size) * conditionMultiplier));
 }
 
 function parsePrice(text: string): number | null {
@@ -54,19 +76,39 @@ function searchPath(query: string) {
   return encodeURIComponent(query.trim().replace(/\s+/g, "-"));
 }
 
-function fallbackQueries(analysis?: ProductAnalysis) {
-  if (!analysis) return [];
-  const brandModel = [analysis.brand, analysis.model].filter(Boolean).join(" ").trim();
-  return [
-    brandModel,
-    analysis.model,
-    [analysis.brand, analysis.productType].filter(Boolean).join(" ").trim(),
-    analysis.productType
-  ].filter((query): query is string => Boolean(query && query.length > 2));
+function modelSearchQuery(analysis?: ProductAnalysis) {
+  const model = analysis?.model?.trim();
+  const brand = analysis?.brand?.trim();
+  if (model && model.length > 2) {
+    if (brand && !normalizeText(model).includes(normalizeText(brand))) {
+      return `${brand} ${model}`;
+    }
+    return model;
+  }
+  return [analysis?.brand, analysis?.productType].filter(Boolean).join(" ").trim();
 }
 
-function normalizeQueries(queries: string[], analysis?: ProductAnalysis) {
-  return [...new Set([...queries, ...fallbackQueries(analysis)].map((query) => query.trim()).filter((query) => query.length > 2))].slice(0, 6);
+function fallbackQueries(analysis?: ProductAnalysis) {
+  if (!analysis) return [];
+  return [modelSearchQuery(analysis), analysis.productType].filter((query): query is string => Boolean(query && query.length > 2));
+}
+
+export function normalizeQueries(queries: string[], analysis?: ProductAnalysis) {
+  const preferredModelQuery = modelSearchQuery(analysis);
+  if (preferredModelQuery.length > 2) return [preferredModelQuery];
+  return [...new Set([...queries, ...fallbackQueries(analysis)].map((query) => query.trim()).filter((query) => query.length > 2))].slice(0, 3);
+}
+
+function conditionFilterSuffix(analysis?: ProductAnalysis) {
+  if (!analysis) return "";
+  if (analysis.condition === "new") return "+global.zustand:new";
+  if (analysis.condition === "like_new") return "+global.zustand:like_new";
+  if (analysis.condition === "good" || analysis.condition === "fair" || hasProductDamageEvidence(analysis)) return "+global.zustand:ok";
+  return "";
+}
+
+export function searchUrl(query: string, analysis?: ProductAnalysis) {
+  return `https://www.kleinanzeigen.de/s-anzeige:angebote/${searchPath(query)}/k0${conditionFilterSuffix(analysis)}`;
 }
 
 export async function searchKleinanzeigen(queries: string[], analysis?: ProductAnalysis): Promise<ComparableListing[]> {
@@ -76,7 +118,7 @@ export async function searchKleinanzeigen(queries: string[], analysis?: ProductA
 
   try {
     for (const query of normalizeQueries(queries, analysis)) {
-      const url = `https://www.kleinanzeigen.de/s-${searchPath(query)}/k0`;
+      const url = searchUrl(query, analysis);
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25_000 });
       await page.waitForTimeout(1200);
 

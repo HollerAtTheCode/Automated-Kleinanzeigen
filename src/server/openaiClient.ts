@@ -3,7 +3,12 @@ import OpenAI, { APIError } from "openai";
 import type { ListingDraft, PriceRecommendation, ProductAnalysis } from "../shared/types.js";
 import { config, getOpenaiApiKey } from "./config.js";
 import type { StoredSessionState } from "./sessionStore.js";
-import { PRODUCT_ANALYSIS_TEXT_FORMAT, ProductAnalysisSchema } from "./validators.js";
+import {
+  CONSERVATIVE_CONDITION_INSTRUCTIONS,
+  PRODUCT_ANALYSIS_TEXT_FORMAT,
+  ProductAnalysisSchema,
+  applyConservativeConditionPolicy
+} from "./validators.js";
 import { normalizeKleinanzeigenCategory } from "./categories.js";
 
 function fallbackAnalysis(): ProductAnalysis {
@@ -89,8 +94,11 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
           content: [
             {
               type: "input_text",
-              text:
-                "Analysiere diese Produktbilder für einen privaten Kleinanzeigen-Verkauf. Fülle alle Felder im vorgegebenen Schema. saleNotes soll bereits wie ein natürlicher Text aus Sicht des Verkäufers klingen, nicht wie eine externe Bildbeobachtung. Schreibe in der Ich-Form, mit 2 bis 4 kurzen Absätzen, verkaufsnah und sachlich. Beschreibe Zustand, Zubehör und Gebrauchsspuren so, als würde ich meinen eigenen Artikel anbieten. Verwende keine Semikolons. Verwende keine Formulierungen wie 'auf den Fotos sichtbar', 'sichtbarer Zustand', 'wirkt', 'erkennbar', 'aufgefallen', 'ich kann erkennen', 'anhand der Bilder' oder 'technische Mängel'. Erfinde keine Mängel. Wenn keine Mängel erkennbar sind und der Zustand gut ist, schreibe klar aus Verkäufersicht: 'Kratzer oder Beschädigungen gibt es keine.' Wenn Marke, Modell, Kategorie oder Zustand nicht sicher erkennbar sind, nutze leere Strings beziehungsweise unknown und stelle konkrete Rückfragen in openQuestions."
+              text: [
+                "Analysiere diese Produktbilder für einen privaten Kleinanzeigen-Verkauf. Fülle alle Felder im vorgegebenen Schema.",
+                CONSERVATIVE_CONDITION_INSTRUCTIONS,
+                "Erfasse sichtbare Kratzer, Dellen, Display- oder Gehäuseschäden, fehlende Teile und deutliche Gebrauchsspuren explizit in detectedAttributes und saleNotes. Wenn Kratzer klar sichtbar sind, benenne sie direkt und konkret mit Ort, z. B. Kratzer am Gehäuse um die Linse, statt sie nur als mögliche Spuren zu umschreiben. saleNotes soll bereits wie ein natürlicher Text aus Sicht des Verkäufers klingen, nicht wie eine externe Bildbeobachtung. Schreibe in der Ich-Form, mit 2 bis 4 kurzen Absätzen, verkaufsnah und sachlich. Beschreibe Zustand, Zubehör und Gebrauchsspuren so, als würde ich meinen eigenen Artikel anbieten. Verwende keine Semikolons. Verwende keine Formulierungen wie 'auf den Fotos sichtbar', 'sichtbarer Zustand', 'wirkt', 'erkennbar', 'aufgefallen', 'ich kann erkennen', 'anhand der Bilder', 'möchte ich nicht ausschließen' oder 'technische Mängel'. Erfinde keine Mängel. Behaupte nur dann, dass es keine Kratzer oder Beschädigungen gibt, wenn alle relevanten sichtbaren Flächen klar unbeschädigt sind. Wenn etwas nach Schaden aussehen könnte, aber auch Reflexion, Staub oder Schmutz sein kann, schreibe keine Negativbehauptung wie 'keine Kratzer', sondern stelle eine konkrete Rückfrage und formuliere vorsichtig. Wenn Marke, Modell, Kategorie oder Zustand nicht sicher erkennbar sind, nutze leere Strings beziehungsweise unknown und stelle konkrete Rückfragen in openQuestions."
+              ].join(" ")
             },
             ...imageInputs
           ]
@@ -105,7 +113,8 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
     const parsedJson = normalizeAnalysisPayload(JSON.parse(response.output_text));
     const parsed = ProductAnalysisSchema.safeParse(parsedJson);
     if (parsed.success) {
-      return { ...parsed.data, suggestedCategory: normalizeKleinanzeigenCategory(parsed.data) };
+      const conservativeAnalysis = applyConservativeConditionPolicy(parsed.data);
+      return { ...conservativeAnalysis, suggestedCategory: normalizeKleinanzeigenCategory(conservativeAnalysis) };
     }
   } catch {
     // The request uses Structured Outputs, so this should only happen on provider/API failures.
@@ -115,7 +124,7 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
 }
 
 export async function generateSaleNotes(session: StoredSessionState): Promise<string> {
-  const analysis = session.analysis ?? fallbackAnalysis();
+  const analysis = applyConservativeConditionPolicy(session.analysis ?? fallbackAnalysis());
   const client = makeClient();
   const existingNotes = analysis.saleNotes?.trim() ?? "";
   if (!client) return existingNotes;
@@ -131,7 +140,7 @@ export async function generateSaleNotes(session: StoredSessionState): Promise<st
               type: "input_text",
               text: JSON.stringify({
                 instruction:
-                  "Schreibe den Text für das Feld 'Hinweise oder Mängel' einer privaten Kleinanzeigen-Anzeige komplett neu. Perspektive: Ich verkaufe meinen eigenen Artikel. Stil: natürlich, verkaufsnah, freundlich, aber sachlich. Struktur: 2 bis 4 kurze Absätze mit Leerzeilen. Schreibe wie ein normaler Mensch in einer Kleinanzeige, nicht wie ein Gutachten. Verwende keine Semikolons. Nutze Zustand, Zubehör und typische Informationen aus ähnlichen Anzeigen als Kontext, aber kopiere keine fremden Anzeigen wörtlich. Keine distanzierten Bildanalyse-Formulierungen wie 'auf den Fotos sichtbar', 'sichtbarer Zustand', 'wirkt', 'erkennbar', 'aufgefallen', 'ich kann erkennen', 'anhand der Bilder' oder 'technische Mängel'. Erwähne Mängel nur, wenn sie vom Nutzer angegeben wurden oder aus der Analyse klar hervorgehen. Wenn keine Mängel bekannt sind, schreibe klar aus Verkäufersicht, z. B. 'Kratzer oder Beschädigungen gibt es keine.' Keine Garantien und keine übertriebene Werbesprache.",
+                  "Schreibe den Text für das Feld 'Hinweise oder Mängel' einer privaten Kleinanzeigen-Anzeige komplett neu. Perspektive: Ich verkaufe meinen eigenen Artikel. Stil: natürlich, verkaufsnah, freundlich, aber sachlich. Struktur: 2 bis 4 kurze Absätze mit Leerzeilen. Schreibe wie ein normaler Mensch in einer Kleinanzeige, nicht wie ein Gutachten. Verwende keine Semikolons. Nutze Zustand, Zubehör und typische Informationen aus ähnlichen Anzeigen als Kontext, aber kopiere keine fremden Anzeigen wörtlich. Keine distanzierten Bildanalyse-Formulierungen wie 'auf den Fotos sichtbar', 'sichtbarer Zustand', 'wirkt', 'erkennbar', 'aufgefallen', 'ich kann erkennen', 'anhand der Bilder', 'möchte ich nicht ausschließen' oder 'technische Mängel'. Sichtbare oder aus der Analyse hervorgehende Kratzer, Beschädigungen, starke Gebrauchsspuren, fehlende Teile und Funktionszweifel müssen ehrlich und konkret erwähnt werden. Wenn die Analyse z. B. Kratzer am Gehäuse, am Objektivring oder um die Linse nennt, schreibe genau das in den Text. Beschönige klare Schäden nicht als nur mögliche feine Spuren. Behaupte nur dann, dass es keine Kratzer oder Beschädigungen gibt, wenn die Analyse das klar stützt. Wenn ein möglicher Schaden unklar sein könnte, formuliere vorsichtig und nenne die offene Prüfung, statt Schäden zu negieren. Keine Garantien und keine übertriebene Werbesprache.",
                 product: analysis,
                 comparableListings: session.comparables.slice(0, 8).map((listing) => ({
                   title: listing.title,
@@ -152,7 +161,7 @@ export async function generateSaleNotes(session: StoredSessionState): Promise<st
 }
 
 export async function generateDraft(session: StoredSessionState, price: PriceRecommendation): Promise<ListingDraft> {
-  const analysis = session.analysis ?? fallbackAnalysis();
+  const analysis = applyConservativeConditionPolicy(session.analysis ?? fallbackAnalysis());
   const imageOrder = session.images.map((image) => image.id);
   const fulfillmentMethod = analysis.fulfillmentMethod ?? "shipping";
   const priceType = analysis.priceType ?? "negotiable";

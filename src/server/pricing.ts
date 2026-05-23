@@ -15,6 +15,12 @@ function roundCommercial(price: number) {
   return Math.max(10, Math.round(price / 10) * 10);
 }
 
+function marketMarkdown(sampleSize: number) {
+  if (sampleSize >= 8) return 0.9;
+  if (sampleSize >= 4) return 0.93;
+  return 0.95;
+}
+
 export function recommendPrice(listings: ComparableListing[]): PriceRecommendation {
   const explicitExcluded = new Set(listings.filter((listing) => listing.excluded).map((listing) => listing.id));
   const priced = listings
@@ -45,9 +51,10 @@ export function recommendPrice(listings: ComparableListing[]): PriceRecommendati
   const median = quantile(usedPrices, 0.5);
   const scoreTotal = usable.reduce((sum, listing) => sum + Math.max(0.1, listing.score), 0);
   const weighted = usable.reduce((sum, listing) => sum + listing.price * Math.max(0.1, listing.score), 0) / scoreTotal;
-  const targetBase = ((median ?? weighted) + weighted) / 2;
-  const markdown = usable.length < 3 ? 0.95 : 0.93;
-  const suggestedPrice = roundCommercial(targetBase * markdown);
+  const midpoint = ((median ?? weighted) + weighted) / 2;
+  const conservativeBase = Math.min(median ?? weighted, midpoint);
+  const markdown = marketMarkdown(usable.length);
+  const suggestedPrice = roundCommercial(conservativeBase * markdown);
   const usedListingIds = usable.map((listing) => listing.id);
   const outlierIds = priced.filter((listing) => !usedListingIds.includes(listing.id)).map((listing) => listing.id);
 
@@ -59,8 +66,10 @@ export function recommendPrice(listings: ComparableListing[]): PriceRecommendati
     usedListingIds,
     excludedListingIds: [...explicitExcluded, ...outlierIds],
     rationale:
-      usable.length < 3
-        ? "Wenige Vergleichspreise: Median und gewichtete Mitte kombiniert, danach leicht darunter gerundet."
-        : "Ausreißer entfernt, Median und gewichtete Mitte kombiniert, danach ca. 5-10% darunter gerundet."
+      usable.length >= 8
+        ? "Ausreißer entfernt, konservativen Marktwert berechnet und wegen vieler Vergleichsangebote ca. 10% darunter gerundet."
+        : usable.length >= 4
+          ? "Ausreißer entfernt, konservativen Marktwert berechnet und ca. 7% darunter gerundet."
+          : "Wenige Vergleichspreise: konservativen Marktwert berechnet und ca. 5% darunter gerundet."
   };
 }

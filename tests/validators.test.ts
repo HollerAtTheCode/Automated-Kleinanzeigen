@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  CONSERVATIVE_CONDITION_INSTRUCTIONS,
   PRODUCT_ANALYSIS_TEXT_FORMAT,
   ProductAnalysisSchema,
+  applyConservativeConditionPolicy,
   parseExcludedListingIds,
   parseJsonObject,
   parseSearchQueries,
@@ -33,6 +35,79 @@ describe("ProductAnalysisSchema", () => {
 
   it("uses an OpenAI structured-output compatible schema", () => {
     expect(JSON.stringify(PRODUCT_ANALYSIS_TEXT_FORMAT.schema)).not.toContain("propertyNames");
+  });
+
+  it("documents conservative condition rules for image analysis", () => {
+    expect(CONSERVATIVE_CONDITION_INSTRUCTIONS).toContain("Kratzer");
+    expect(CONSERVATIVE_CONDITION_INSTRUCTIONS).toContain("nicht 'new' oder 'like_new'");
+    expect(CONSERVATIVE_CONDITION_INSTRUCTIONS).toContain("unsicher");
+  });
+
+  it("downgrades optimistic AI conditions when damage evidence is present", () => {
+    const result = applyConservativeConditionPolicy({
+      productType: "Kamera",
+      brand: "Sony",
+      model: "RX100",
+      condition: "like_new",
+      confidence: 0.8,
+      detectedAttributes: { zustand: "leichte Kratzer am Gehaeuse, kleine Delle an der Ecke" },
+      openQuestions: [],
+      searchQueries: ["Sony RX100"],
+      suggestedCategory: "Foto"
+    });
+
+    expect(result.condition).toBe("good");
+    expect(result.saleNotes).toContain("Kratzer");
+    expect(result.openQuestions).toEqual([
+      "Bitte prüfe und beschreibe sichtbare Schäden, Kratzer, fehlende Teile oder Funktionsprobleme genauer."
+    ]);
+  });
+
+  it("uses fair instead of like_new for strong damage evidence", () => {
+    const result = applyConservativeConditionPolicy({
+      productType: "Kamera",
+      condition: "new",
+      confidence: 0.8,
+      detectedAttributes: { display: "Displayriss und Gehaeuseschaden sichtbar" },
+      openQuestions: ["Funktioniert der Bildschirm noch ohne Einschraenkung?"],
+      searchQueries: ["Kamera"],
+      suggestedCategory: "Foto"
+    });
+
+    expect(result.condition).toBe("fair");
+    expect(result.openQuestions).toEqual(["Funktioniert der Bildschirm noch ohne Einschraenkung?"]);
+  });
+
+  it("replaces damage-negating sale notes when damage evidence exists", () => {
+    const result = applyConservativeConditionPolicy({
+      productType: "Kamera",
+      condition: "like_new",
+      confidence: 0.8,
+      detectedAttributes: { zustand: "Kratzer am Objektivring" },
+      openQuestions: [],
+      searchQueries: ["Kamera"],
+      suggestedCategory: "Foto",
+      saleNotes: "Kratzer oder Beschädigungen gibt es keine."
+    });
+
+    expect(result.condition).toBe("good");
+    expect(result.saleNotes).toContain("Kratzer am Objektivring");
+    expect(result.saleNotes).not.toContain("gibt es keine");
+  });
+
+  it("does not downgrade when notes explicitly deny damage", () => {
+    const result = applyConservativeConditionPolicy({
+      productType: "Kamera",
+      condition: "like_new",
+      confidence: 0.8,
+      detectedAttributes: { zustand: "sehr gepflegt" },
+      openQuestions: [],
+      searchQueries: ["Kamera"],
+      suggestedCategory: "Foto",
+      saleNotes: "Kratzer oder Beschädigungen gibt es keine."
+    });
+
+    expect(result.condition).toBe("like_new");
   });
 
   it("rejects non-UUID session ids before filesystem use", () => {
