@@ -119,17 +119,49 @@ function splitAccessoryItems(value: string) {
     .filter((item) => item.length > 1);
 }
 
+function normalizeAccessoryLabel(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9äöüß]+/gi, " ").trim();
+}
+
 function accessoryItems(analysis: ProductAnalysis) {
-  const accessoryValues = Object.entries(analysis.detectedAttributes ?? {})
+  const detectedItems = Object.entries(analysis.detectedAttributes ?? {})
     .filter(([name]) => /zubehör|zubehoer|lieferumfang|enthalten|included/i.test(name))
     .flatMap(([, value]) => splitAccessoryItems(value));
-  return [...new Set(accessoryValues)].slice(0, 8);
+  if (detectedItems.length === 0) return [];
+
+  const itemName = listingItemName(analysis);
+  const items = [itemName, ...detectedItems].filter(Boolean);
+  const seen = new Set<string>();
+  return items
+    .filter((item) => {
+      const label = normalizeAccessoryLabel(item);
+      if (!label || seen.has(label)) return false;
+      seen.add(label);
+      return true;
+    })
+    .slice(0, 10);
+}
+
+function existingAccessoryItems(text: string) {
+  const match = text.match(/(?:^|\n)(?:Lieferumfang|Zubehör|Zubehoer):\s*\n((?:\s*-\s+.+(?:\n|$))+)/i);
+  if (!match) return [];
+  return match[1]
+    .split("\n")
+    .map((line) => line.replace(/^\s*-\s+/, "").trim())
+    .filter(Boolean);
+}
+
+function removeAccessoryList(text: string) {
+  return text.replace(/(?:^|\n)(?:Lieferumfang|Zubehör|Zubehoer):\s*\n(?:\s*-\s+.+(?:\n|$))+/i, "\n").trim();
 }
 
 function appendAccessoryList(text: string, analysis: ProductAnalysis) {
   const items = accessoryItems(analysis);
-  if (items.length < 2 || /(?:lieferumfang|zubehör|zubehoer):\s*\n\s*-/i.test(text)) return text;
-  return [text, `Lieferumfang:\n${items.map((item) => `- ${item}`).join("\n")}`].filter(Boolean).join("\n\n");
+  const existingItems = existingAccessoryItems(text);
+  if (items.length < 2 && existingItems.length === 0) return text;
+  if (existingItems.length >= items.length) return text;
+  const body = existingItems.length > items.length ? text : removeAccessoryList(text);
+  return [body, `Lieferumfang:\n${items.map((item) => `- ${item}`).join("\n")}`].filter(Boolean).join("\n\n");
 }
 
 function listingItemName(analysis: ProductAnalysis) {
@@ -179,7 +211,7 @@ export async function analyzeProduct(session: StoredSessionState): Promise<Produ
               text: [
                 "Analysiere diese Produktbilder für einen privaten Kleinanzeigen-Verkauf. Fülle alle Felder im vorgegebenen Schema.",
                 CONSERVATIVE_CONDITION_INSTRUCTIONS,
-                "Erfasse sichtbare Kratzer, Dellen, Display- oder Gehäuseschäden, fehlende Teile und deutliche Gebrauchsspuren explizit in detectedAttributes und saleNotes. Wenn Kratzer klar sichtbar sind, benenne sie direkt und konkret mit Ort, z. B. Kratzer am Gehäuse um die Linse, statt sie nur als mögliche Spuren zu umschreiben. saleNotes soll bereits wie ein natürlicher Text aus Sicht des Verkäufers klingen, nicht wie eine externe Bildbeobachtung. Beginne wie eine echte Anzeige, z. B. 'Ich verkaufe hier meine ...'. Schreibe in der Ich-Form, mit 2 bis 4 kurzen Absätzen, verkaufsnah und sachlich. Beschreibe Zustand, Zubehör und Gebrauchsspuren so, als würde ich meinen eigenen Artikel anbieten. Verwende keine Semikolons. Verwende aktive, direkte Verkäufersprache wie 'Das Display ist sauber und ohne Kratzer' statt 'wirkt sauber'. Verwende keine Formulierungen wie 'auf den Fotos sichtbar', 'sichtbarer Zustand', 'wirkt', 'scheint', 'vermutlich', 'möglich', 'soweit ich erkennen kann', 'erkennbar', 'aufgefallen', 'ich kann erkennen', 'anhand der Bilder', 'möchte ich nicht ausschließen', 'kann ich nicht garantieren', 'kann ich nicht feststellen', 'kann ich nicht sagen', 'lässt sich nicht feststellen', 'nicht sicher beurteilen', 'bitte prüfe' oder 'technische Mängel'. Schreibe keine Anweisungen an mich in saleNotes. Erfinde keine Mängel. Behaupte nur dann, dass es keine Kratzer oder Beschädigungen gibt, wenn alle relevanten sichtbaren Flächen klar unbeschädigt sind. Unklare Details gehören in openQuestions, nicht als Disclaimer in saleNotes. Wenn mehrere Zubehörteile sicher erkennbar sind, formatiere sie in saleNotes als Bullet List. Wenn Marke, Modell, Kategorie oder Zustand nicht sicher erkennbar sind, nutze leere Strings beziehungsweise unknown und stelle konkrete Rückfragen in openQuestions."
+                "Erfasse den angebotenen Artikel und den kompletten sichtbar mitverkauften Lieferumfang besonders sorgfältig. Schreibe in detectedAttributes ein Feld 'lieferumfang' mit dem Hauptartikel plus allen klar sichtbaren Zubehörteilen, z. B. Kamera, Weitwinkellinse, Tragetasche, Mikrofon, Kabel, Griff, Ministativ, Originalverpackung. Nenne nur Teile, die auf den Bildern klar erkennbar sind. Erfasse echte Mängel wie Kratzer, Dellen, Display- oder Gehäuseschäden, fehlende Teile und deutliche Gebrauchsspuren separat und konkret in detectedAttributes. Wichtig: Aussagen wie 'Display ohne erkennbare Kratzer oder Risse' sind neutrale Zustandsbeschreibung, kein Mangel und keine Gebrauchsspur. Wenn Kratzer klar sichtbar sind, benenne sie direkt mit Ort, z. B. Kratzer am Gehäuse um die Linse. saleNotes soll wie eine vollständige private Kleinanzeigen-Beschreibung klingen, nicht wie eine externe Bildbeobachtung. Beginne wie eine echte Anzeige, z. B. 'Ich verkaufe hier meine ...'. Schreibe in der Ich-Form, mit 3 bis 5 kurzen Absätzen, verkaufsnah und sachlich. Beschreibe Artikel, Nutzung, Zustand und Lieferumfang so, als würde ich meinen eigenen Artikel anbieten. Verwende keine Semikolons. Verwende aktive, direkte Verkäufersprache wie 'Das Display ist sauber und ohne Kratzer' statt 'wirkt sauber'. Verwende keine Formulierungen wie 'auf den Fotos sichtbar', 'sichtbarer Zustand', 'wirkt', 'scheint', 'vermutlich', 'möglich', 'soweit ich erkennen kann', 'aufgefallen', 'ich kann erkennen', 'anhand der Bilder', 'möchte ich nicht ausschließen', 'kann ich nicht garantieren', 'kann ich nicht feststellen', 'kann ich nicht sagen', 'lässt sich nicht feststellen', 'nicht sicher beurteilen', 'bitte prüfe' oder 'technische Mängel'. Schreibe keine Anweisungen an mich in saleNotes. Erfinde keine Mängel. Behaupte nur dann, dass es keine Kratzer oder Beschädigungen gibt, wenn alle relevanten sichtbaren Flächen klar unbeschädigt sind. Unklare Details gehören in openQuestions, nicht als Disclaimer in saleNotes. Wenn mehrere Zubehörteile sicher erkennbar sind, formatiere sie in saleNotes als Bullet List unter 'Lieferumfang:'. Wenn Marke, Modell, Kategorie oder Zustand nicht sicher erkennbar sind, nutze leere Strings beziehungsweise unknown und stelle konkrete Rückfragen in openQuestions."
               ].join(" ")
             },
             ...imageInputs
@@ -222,7 +254,7 @@ export async function generateSaleNotes(session: StoredSessionState): Promise<st
               type: "input_text",
               text: JSON.stringify({
                 instruction:
-                  "Schreibe den Text für das Feld 'Hinweise oder Mängel' einer privaten Kleinanzeigen-Anzeige komplett neu. Perspektive: Ich verkaufe meinen eigenen Artikel und habe ihn vor mir. Stil: natürlich, verkaufsnah, freundlich, aber sachlich. Beginne wie eine echte Anzeige, z. B. 'Ich verkaufe hier meine ...'. Struktur: 2 bis 4 kurze Absätze mit Leerzeilen. Schreibe wie ein normaler Mensch in einer Kleinanzeige, nicht wie ein Gutachten. Verwende aktive, direkte Verkäufersprache wie 'Das Display ist sauber und ohne Kratzer' statt 'wirkt sauber'. Verwende keine Semikolons. Nutze Zustand, Zubehör und typische Informationen aus ähnlichen Anzeigen als Kontext, aber kopiere keine fremden Anzeigen wörtlich. Keine distanzierten Bildanalyse-Formulierungen wie 'auf den Fotos sichtbar', 'sichtbarer Zustand', 'wirkt', 'scheint', 'vermutlich', 'möglich', 'soweit ich erkennen kann', 'erkennbar', 'aufgefallen', 'ich kann erkennen', 'anhand der Bilder', 'möchte ich nicht ausschließen', 'kann ich nicht garantieren', 'kann ich nicht feststellen', 'kann ich nicht sagen', 'lässt sich nicht feststellen', 'nicht sicher beurteilen', 'bitte prüfe' oder 'technische Mängel'. Schreibe keine Anweisungen an mich. Sichtbare oder aus der Analyse hervorgehende Kratzer, Beschädigungen, starke Gebrauchsspuren, fehlende Teile und Funktionszweifel müssen ehrlich und konkret erwähnt werden. Wenn die Analyse z. B. Kratzer am Gehäuse, am Objektivring oder um die Linse nennt, schreibe genau das in den Text. Beschönige klare Schäden nicht als nur mögliche feine Spuren. Unbekannten Lieferumfang nicht als Disclaimer formulieren. Liste bekanntes Zubehör konkret auf. Wenn mehrere Zubehörteile enthalten sind, formatiere sie als Bullet List. Keine Garantien und keine übertriebene Werbesprache.",
+                  "Schreibe die Artikelbeschreibung für eine private Kleinanzeigen-Anzeige komplett neu. Perspektive: Ich verkaufe meinen eigenen Artikel und habe ihn vor mir. Der Text muss direkt veröffentlichbar sein, nicht wie eine Prüfanweisung oder ein Analyseprotokoll. Stil: natürlich, verkaufsnah, freundlich, aber sachlich. Beginne wie eine echte Anzeige, z. B. 'Ich verkaufe hier meine ...'. Struktur: 3 bis 5 kurze Absätze mit Leerzeilen. Schreibe wie ein normaler Mensch in einer Kleinanzeige, nicht wie ein Gutachten. Nenne zuerst klar den Artikel, danach kurz Zustand/Nutzung und danach den Lieferumfang. Verwende aktive, direkte Verkäufersprache wie 'Das Display ist sauber und ohne Kratzer' statt 'wirkt sauber'. Verwende keine Semikolons. Nutze Zustand, Zubehör und typische Informationen aus ähnlichen Anzeigen als Kontext, aber kopiere keine fremden Anzeigen wörtlich. Keine distanzierten Bildanalyse-Formulierungen wie 'auf den Fotos sichtbar', 'sichtbarer Zustand', 'wirkt', 'scheint', 'vermutlich', 'möglich', 'soweit ich erkennen kann', 'aufgefallen', 'ich kann erkennen', 'anhand der Bilder', 'möchte ich nicht ausschließen', 'kann ich nicht garantieren', 'kann ich nicht feststellen', 'kann ich nicht sagen', 'lässt sich nicht feststellen', 'nicht sicher beurteilen', 'bitte prüfe' oder 'technische Mängel'. Schreibe keine Anweisungen an mich. Wichtig: Positive oder neutrale Aussagen wie 'Display ohne erkennbare Kratzer oder Risse' sind kein Mangel und dürfen nicht unter 'Gebrauchsspuren' zusammengefasst werden. Sichtbare oder aus der Analyse hervorgehende echte Kratzer, Beschädigungen, starke Gebrauchsspuren, fehlende Teile und Funktionszweifel müssen ehrlich und konkret erwähnt werden. Wenn die Analyse z. B. Kratzer am Gehäuse, am Objektivring oder um die Linse nennt, schreibe genau das in den Text. Beschönige klare Schäden nicht als nur mögliche feine Spuren. Unbekannten Lieferumfang nicht als Disclaimer formulieren. Liste den bekannten Lieferumfang konkret auf. Wenn mehrere Zubehörteile enthalten sind, formatiere sie als Bullet List unter 'Lieferumfang:'. Keine Garantien und keine übertriebene Werbesprache.",
                 product: analysis,
                 comparableListings: session.comparables.slice(0, 8).map((listing) => ({
                   title: listing.title,
